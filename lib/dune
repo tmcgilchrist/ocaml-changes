@@ -1,0 +1,4 @@
+(library
+ (name changes)
+ (public_name ocaml-changes)
+ (libraries result fmt mparser astring))
