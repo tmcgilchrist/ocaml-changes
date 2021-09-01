@@ -13,7 +13,7 @@ Examples
 ----------
 Representive CHANGELOGs that are supported:
 
- 1. opam-publish style as per {{:https://raw.githubusercontent.com/ocaml-opam/opam-publish/master/CHANGES}} (SUPPORTED)
+ 1. opam-publish style as per [https://raw.githubusercontent.com/ocaml-opam/opam-publish/master/CHANGES]() (SUPPORTED)
 
 ```
 
@@ -24,7 +24,7 @@ Representive CHANGELOGs that are supported:
   was set or they are `conf` packages
 ```
 
- 2. Markdown style without sections as per {{:https://github.com/mirage/ocaml-cohttp/blob/master/CHANGES.md}} (SUPPORTED)
+ 2. Markdown style without sections as per [https://github.com/mirage/ocaml-cohttp/blob/master/CHANGES.md]() (SUPPORTED)
 
 ```
 ## Version (date?)
@@ -32,7 +32,7 @@ Representive CHANGELOGs that are supported:
 
 ```
 
- 3. Markdown style with sections as per {{:https://github.com/mirage/irmin/blob/master/CHANGES.md}} (WIP)
+ 3. Markdown style with sections as per [https://github.com/mirage/irmin/blob/master/CHANGES.md]() (WIP)
 
 ```
 ## Version (date?)
@@ -43,7 +43,7 @@ Representive CHANGELOGs that are supported:
 
 ```
 
- 4. LWT style as per {{:https://github.com/ocsigen/lwt/blob/master/CHANGES}} (WIP)
+ 4. LWT style as per [https://github.com/ocsigen/lwt/blob/master/CHANGES]() (WIP)
 
 ```
 ===== version (date?) =====
