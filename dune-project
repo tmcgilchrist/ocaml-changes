@@ -11,7 +11,7 @@
  (name ocaml-changes)
  (depends
   (alcotest :with-test)
-  (ocaml (>= 4.04.0))
+  (ocaml (>= 4.08.0))
   (mparser (>= 1.3))
   (fmt (>= 0.8))
   (result (>= 1.5))
