@@ -54,9 +54,28 @@ Representive CHANGELOGs that are supported:
 ```
 
 
-Issues
+General pattern for markdown CHANGES is:
+
+```
+# Heading (Version)
+
+either:
+## Sub-heading
+
+```
+
+TODO
 ----------
 
+ * integrate into dune-release, which needs to read the first section in the CHANGELOG,
+   modify it, and include it in the PR comment for creating against ocaml/opam-repository.
+   eg https://github.com/ocaml/opam-repository/pull/19377
+   dune release could already be supported, they handle simple markdown and asciidoc aka version 1.
+
+ * identify the file type either by scanning ahead and heuristically identifing the type, or
+   by passing the type into the parser, having both ascii and markdown side by side.
+ * current design will not round-trip using the correct markdown formatting
+ * opam CHANGES has an opening paragraph before the first version header see `cases/opam`
  * indented list of lists in markdown format do not round trip
  eg
 ```
@@ -70,3 +89,8 @@ Is parsed as two entries and pretty printed as:
 * Thing
 * sub-list
 ```
+
+Resources
+----------
+
+ * [ocaml-markdown omd](https://github.com/ocaml/omd)

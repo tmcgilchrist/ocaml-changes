@@ -17,11 +17,9 @@
 open Result
 
 module Change = struct
-  type t = { description : string }
+  type t = { description : string; list_marker : char }
 
-  let default_bullet = '*'
-
-  let to_string { description } =
+  let to_string { description; list_marker } =
     let lines = Astring.String.fields ~is_sep:(( = ) '\n') description in
     let rev_indented_lines =
       List.fold_left
@@ -35,7 +33,7 @@ module Change = struct
         [] lines
     in
     let description = String.concat "\n" (List.rev rev_indented_lines) in
-    Printf.sprintf "%c %s" default_bullet description
+    Printf.sprintf "%c %s" list_marker description
 end
 
 module Section = struct
@@ -82,9 +80,9 @@ module Parser = struct
     cur_change_d : int;
   }
 
-  let ( <.< ) x y = x >>= ( >>$ ) y
+  let ( <* ) x y = x >>= ( >>$ ) y
 
-  let ( >.> ) x y = x >>= fun _ -> y
+  let ( *> ) x y = x >>= fun _ -> y
 
   let rec skip_upto_count k p =
     match k with
@@ -96,7 +94,7 @@ module Parser = struct
 
   let blanks = skip_many_chars blank
 
-  let line = many_chars (not_followed_by newline "" >.> any_char)
+  let line = many_chars (not_followed_by newline "" *> any_char)
 
   let printable_char_no_space =
     any_of (String.init (126 - 33 + 1) (fun x -> Char.chr (x + 33)))
@@ -104,7 +102,7 @@ module Parser = struct
   let version_char = printable_char_no_space
 
   let version =
-    many1_chars (not_followed_by (blank <|> char ':') "" >.> version_char)
+    many1_chars (not_followed_by (blank <|> char ':') "" *> version_char)
 
   let decimal =
     many1_chars digit >>= fun digits ->
@@ -121,8 +119,8 @@ module Parser = struct
     | { date_sep = Some sep; _ } -> char sep
 
   let date =
-    decimal <.< skip date_sep >>= fun year ->
-    decimal <.< skip date_sep >>= fun month ->
+    decimal <* skip date_sep >>= fun year ->
+    decimal <* skip date_sep >>= fun month ->
     decimal >>= fun day -> return (year, month, day)
 
   let change_bullet =
@@ -133,43 +131,47 @@ module Parser = struct
     | { change_bullet = Some bullet; _ } -> char bullet
 
   let change_start =
-    blanks >.> skip change_bullet >.> blanks >.> get_pos >>= fun (_, _, col) ->
+    blanks *> skip change_bullet *> blanks *> get_pos >>= fun (_, _, col) ->
     get_user_state >>= fun state ->
     set_user_state { state with cur_change_d = col - 1 }
 
-  let blank_line = newline >.> skip_many1_chars newline
+  let blank_line = newline *> skip_many1_chars newline
 
   let rec continue_change d prev_lines =
-    followed_by (newline >.> change_start) "next line not new change"
+    followed_by (newline *> change_start) "next line not new change"
     <|> followed_by
-          (blank_line >.> not_followed_by (skip_count d blank) "")
+          (blank_line *> not_followed_by (skip_count d.cur_change_d blank) "")
           "next line not new release"
-    <|> followed_by (optional newline >.> eof) "next line not eof"
+    <|> followed_by (optional newline *> eof) "next line not eof"
     |>> (fun () ->
           let description = String.concat "\n" (List.rev prev_lines) in
-          { Change.description })
-    <|> ( newline >.> skip_upto_count d blank >.> line >>= fun next_line ->
-          continue_change d (next_line :: prev_lines) )
+          {
+            Change.description;
+            list_marker = Option.value ~default:'*' d.change_bullet;
+          })
+    (* TODO This will bite me later on. We know that we are in a change, How can we preserve that info? *)
+    <|> ( newline *> skip_upto_count d.cur_change_d blank *> line
+        >>= fun next_line -> continue_change d (next_line :: prev_lines) )
 
   let change =
-    change_start >.> get_user_state >>= fun { cur_change_d = d; _ } ->
+    change_start *> get_user_state >>= fun d ->
     line >>= fun description -> continue_change d [ description ]
 
   let rec changes prev_changes =
     change >>= fun delta ->
     followed_by blank_line "not next release"
-    <|> followed_by (optional newline >.> eof) "not eof 2"
+    <|> followed_by (optional newline *> eof) "not eof 2"
     |>> (fun () -> List.rev (delta :: prev_changes))
-    <|> (newline >.> changes (delta :: prev_changes))
+    <|> newline *> changes (delta :: prev_changes)
 
   let section =
     followed_by change_start "not change start"
     >>= (fun () ->
           changes [] |>> fun changes -> { Section.title = None; changes })
     <|>
-    let end_of_title = char ':' >.> newline in
-    many_chars (not_followed_by end_of_title "" >.> any_char) >>= fun title ->
-    skip end_of_title >.> optional newline >.> changes [] |>> fun changes ->
+    let end_of_title = char ':' *> newline <?> "end of title" in
+    many_chars (not_followed_by end_of_title "" *> any_char) >>= fun title ->
+    skip end_of_title *> optional newline *> changes [] |>> fun changes ->
     { Section.title = Some title; changes }
 
   let markdown_header_pre = skip_many (char '#')
@@ -179,21 +181,25 @@ module Parser = struct
   let release_date_or_release_name = between (char '(') (char ')') date
 
   let release_header =
-    markdown_header_pre >.> blanks
-    >.> (version <?> "a non-empty, non-blank version string")
-    <.< blanks
+    (markdown_header_pre <?> "section before release_header")
+    *> blanks
+    *> (version <?> "a non-empty, non-blank version string")
+    <* blanks
     >>= fun version ->
     option release_date_or_release_name
-    <.< optional (char ':')
-    <.< markdown_header_post
+    <* optional (char ':')
+    <* (markdown_header_post <?> "section after release_header")
     |>> fun date -> (version, date)
 
   let rec sections prev_sections =
-    section >>= fun section ->
-    followed_by (blank_line >.> release_header) "not release header"
-    <|> followed_by (optional newline >.> eof) "not eof 1"
+    (* Clear change_bullet state. *)
+    get_user_state >>= fun state ->
+    set_user_state { state with change_bullet = None } *> section
+    >>= fun section ->
+    followed_by (blank_line *> release_header) "not release header"
+    <|> followed_by (optional newline *> eof) "not eof 1"
     |>> (fun () -> List.rev (section :: prev_sections))
-    <|> (blank_line >.> sections (section :: prev_sections))
+    <|> blank_line *> sections (section :: prev_sections)
 
   let release =
     release_header >>= fun (version, date) ->
@@ -201,9 +207,9 @@ module Parser = struct
 
   let rec releases prev_releases =
     release >>= fun release ->
-    followed_by (optional newline >.> eof) "not eof 0"
+    followed_by (optional newline *> eof) "not eof 0"
     |>> (fun () -> List.rev (release :: prev_releases))
-    <|> (blank_line >.> releases (release :: prev_releases))
+    <|> blank_line *> releases (release :: prev_releases)
 
   let v = releases []
 end

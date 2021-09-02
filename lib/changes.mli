@@ -79,7 +79,7 @@ found for OCaml projects. Representive CHANGELOGs that are supported:
   For example, adding a new feature, fixing a bug, or writing documentation.
  *)
 module Change : sig
-  type t = { description : string }
+  type t = { description : string; list_marker : char }
 
   val to_string : t -> string
   (** Transform an individual [Change.t] to a string. *)
