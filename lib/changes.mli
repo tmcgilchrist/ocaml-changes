@@ -81,7 +81,7 @@ found for OCaml projects. Representive CHANGELOGs that are supported:
 module Change : sig
   type t = { description : string; list_marker : char }
 
-  val to_string : t -> string
+  val pp : t Fmt.t
   (** Transform an individual [Change.t] to a string. *)
 end
 
@@ -99,7 +99,7 @@ end
 module Section : sig
   type t = { title : string option; changes : Change.t list }
 
-  val to_string : t -> string
+  val pp : t Fmt.t
   (** Transform a [Section.t] to a string. *)
 end
 
@@ -111,13 +111,20 @@ end
   the unreleased changes.
  *)
 module Release : sig
+  type date =
+    | FullDate of (int * int * int * char)
+    | MonthYear of (int * int)
+
+  val pp_date : date Fmt.t
+  (** Transform a [date] to a string. *)
+
   type t = {
     version : string;
-    date : (int * int * int) option;
+    date : date option;
     sections : Section.t list;
   }
 
-  val to_string : t -> string
+  val pp : t Fmt.t
   (** Transform a [Release.t] to a string. *)
 end
 

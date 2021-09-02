@@ -19,7 +19,7 @@ open Result
 module Change = struct
   type t = { description : string; list_marker : char }
 
-  let to_string { description; list_marker } =
+  let pp f { description; list_marker } =
     let lines = Astring.String.fields ~is_sep:(( = ) '\n') description in
     let rev_indented_lines =
       List.fold_left
@@ -33,40 +33,48 @@ module Change = struct
         [] lines
     in
     let description = String.concat "\n" (List.rev rev_indented_lines) in
-    Printf.sprintf "%c %s" list_marker description
+    Fmt.pf f "%c %s" list_marker description
 end
 
 module Section = struct
   type t = { title : string option; changes : Change.t list }
 
-  let to_string = function
+  let pp f = function
     | { title = None; changes } ->
-        String.concat "\n" (List.map Change.to_string changes)
+      Fmt.pf f "%a" Fmt.(list ~sep:(unit "\n") Change.pp) changes
     | { title = Some title; changes } ->
-        Printf.sprintf "%s:\n%s" title
-          (String.concat "\n" (List.map Change.to_string changes))
+      Fmt.pf f "%s:\n%a" title Fmt.(list ~sep:(unit "\n") Change.pp) changes
 end
 
 module Release = struct
+  type date =
+    | FullDate of (int * int * int * char)
+    | MonthYear of (int * int)
+
   type t = {
     version : string;
-    date : (int * int * int) option;
+    date : date option;
     sections : Section.t list;
   }
 
-  let default_date_sep = '-'
+  let pp_date f = function
+    | FullDate (y, m, d, date_sep) -> Fmt.pf f "%d%c%02d%c%02d" y date_sep m date_sep d
+    | MonthYear (m, y) ->
+      let months = [
+        1, "Jan"; 2, "Feb"; 3, "Mar"; 4, "Apr"; 5, "May"; 6, "Jun";
+        7, "Jul"; 8, "Aug"; 9, "Sep"; 10, "Oct"; 11, "Nov"; 12, "Dec"
+      ] in
+      let month = Option.value ~default:"Jan" (List.assoc_opt m months) in
+      Fmt.pf f "%s %i" month y
 
-  let string_of_date (y, m, d) =
-    Printf.sprintf "%d%c%02d%c%02d" y default_date_sep m default_date_sep d
-
-  let to_string { version; date; sections } =
+  let pp f { version; date; sections } =
     match date with
     | None ->
-        Printf.sprintf "%s:\n%s\n" version
-          (String.concat "\n\n" (List.map Section.to_string sections))
-    | Some date ->
-        Printf.sprintf "%s (%s):\n%s\n" version (string_of_date date)
-          (String.concat "\n\n" (List.map Section.to_string sections))
+      Fmt.pf f "%s:\n%a\n" version Fmt.(list ~sep:(unit "\n\n") Section.pp) sections
+    | Some (FullDate _ as date) ->
+      Fmt.pf f "%s (%a):\n%a\n" version pp_date date Fmt.(list ~sep:(unit "\n\n") Section.pp) sections
+    | Some (MonthYear _ as date) ->
+      Fmt.pf f "%s [%a]\n%a\n" version pp_date date Fmt.(list ~sep:(unit "\n\n") Section.pp) sections
 end
 
 type t = Release.t list
@@ -119,9 +127,9 @@ module Parser = struct
     | { date_sep = Some sep; _ } -> char sep
 
   let date =
-    decimal <* skip date_sep >>= fun year ->
-    decimal <* skip date_sep >>= fun month ->
-    decimal >>= fun day -> return (year, month, day)
+    decimal >>= fun year -> date_sep >>= fun date_sep_char ->
+    decimal >>= fun month -> skip date_sep *>
+    decimal >>= fun day -> return @@ Release.FullDate (year, month, day, date_sep_char)
 
   let change_bullet =
     get_user_state >>= function
@@ -166,8 +174,7 @@ module Parser = struct
 
   let section =
     followed_by change_start "not change start"
-    >>= (fun () ->
-          changes [] |>> fun changes -> { Section.title = None; changes })
+    *> (changes [] |>> fun changes -> { Section.title = None; changes })
     <|>
     let end_of_title = char ':' *> newline <?> "end of title" in
     many_chars (not_followed_by end_of_title "" *> any_char) >>= fun title ->
@@ -178,7 +185,29 @@ module Parser = struct
 
   let markdown_header_post = skip_many1_chars newline
 
-  let release_date_or_release_name = between (char '(') (char ')') date
+  let month_name =
+    (string "Jan" *> return 1) <|>
+    (string "Feb" *> return 2) <|>
+    (string "Mar" *> return 3) <|>
+    (string "Apr" *> return 4) <|>
+    (string "May" *> return 5) <|>
+    (string "Jun" *> return 6) <|>
+    (string "Jul" *> return 7) <|>
+    (string "Aug" *> return 8) <|>
+    (string "Sep" *> return 9) <|>
+    (string "Oct" *> return 10) <|>
+    (string "Nov" *> return 11) <|>
+    (string "Dec" *> return 12)
+
+  let month_year =
+    month_name >>= fun month ->
+    blanks *>
+    (decimal <?> "year") >>= fun year ->
+    return @@ Release.MonthYear (month, year)
+
+  let release_date_or_release_name =
+    between (char '(') (char ')') (date <?> "(date)") <|>
+    between (char '[') (char ']') (month_year <?> "[Month Year]")
 
   let release_header =
     (markdown_header_pre <?> "section before release_header")
@@ -227,4 +256,4 @@ let of_string = of_ MParser.parse_string
 let of_channel = of_ MParser.parse_channel
 
 let to_string changelog =
-  String.concat "\n" (List.map Release.to_string changelog)
+  Fmt.strf "%a" Fmt.(list ~sep:(unit "\n") Release.pp) changelog

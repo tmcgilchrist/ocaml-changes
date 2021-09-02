@@ -66,9 +66,9 @@ end
 
 let date =
   let module M = struct
-    type t = int * int * int
+    type t = Changes.Release.date
 
-    let pp fmt (y, m, d) = Format.fprintf fmt "%d-%02d-%02d" y m d
+    let pp f date = Changes.Release.pp_date f date
 
     let equal = ( = )
   end in
