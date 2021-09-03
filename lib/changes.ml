@@ -101,13 +101,6 @@ module Parser = struct
     cur_change_d : int;
   }
 
-  let ( <* ) x y = x >>= ( >>$ ) y
-
-  let ( *> ) x y = x >>= fun _ -> y
-
-  let hidden p s =
-      ( <?> ) p "" s
-
   let colon = char ':'
 
   let parens p = between (char '(') (char ')') p
