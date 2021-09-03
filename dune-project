@@ -1,4 +1,4 @@
-(lang dune 2.0)
+(lang dune 2.7)
 (name ocaml-changes)
 (generate_opam_files true)
 
@@ -15,6 +15,7 @@
   (mparser (>= 1.3))
   (fmt (>= 0.8))
   (result (>= 1.5))
-  (astring (>= 0.8)))
+  (astring (>= 0.8))
+  (bisect_ppx (and :dev (>= 2.5.0))))
  (synopsis "Changelog parser")
  (description "Provides a changelog data type, parser, linter, and printer"))

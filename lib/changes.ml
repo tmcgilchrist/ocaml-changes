@@ -41,40 +41,53 @@ module Section = struct
 
   let pp f = function
     | { title = None; changes } ->
-      Fmt.pf f "%a" Fmt.(list ~sep:(unit "\n") Change.pp) changes
+        Fmt.pf f "%a" Fmt.(list ~sep:(unit "\n") Change.pp) changes
     | { title = Some title; changes } ->
-      Fmt.pf f "%s:\n%a" title Fmt.(list ~sep:(unit "\n") Change.pp) changes
+        Fmt.pf f "%s:\n%a" title Fmt.(list ~sep:(unit "\n") Change.pp) changes
 end
 
 module Release = struct
-  type date =
-    | FullDate of (int * int * int * char)
-    | MonthYear of (int * int)
+  type date = FullDate of (int * int * int * char) | MonthYear of (int * int)
 
-  type t = {
-    version : string;
-    date : date option;
-    sections : Section.t list;
-  }
+  type t = { version : string; date : date option; sections : Section.t list }
 
   let pp_date f = function
-    | FullDate (y, m, d, date_sep) -> Fmt.pf f "%d%c%02d%c%02d" y date_sep m date_sep d
+    | FullDate (y, m, d, date_sep) ->
+        Fmt.pf f "%d%c%02d%c%02d" y date_sep m date_sep d
     | MonthYear (m, y) ->
-      let months = [
-        1, "Jan"; 2, "Feb"; 3, "Mar"; 4, "Apr"; 5, "May"; 6, "Jun";
-        7, "Jul"; 8, "Aug"; 9, "Sep"; 10, "Oct"; 11, "Nov"; 12, "Dec"
-      ] in
-      let month = Option.value ~default:"Jan" (List.assoc_opt m months) in
-      Fmt.pf f "%s %i" month y
+        let months =
+          [
+            (1, "Jan");
+            (2, "Feb");
+            (3, "Mar");
+            (4, "Apr");
+            (5, "May");
+            (6, "Jun");
+            (7, "Jul");
+            (8, "Aug");
+            (9, "Sep");
+            (10, "Oct");
+            (11, "Nov");
+            (12, "Dec");
+          ]
+        in
+        let month = Option.value ~default:"Jan" (List.assoc_opt m months) in
+        Fmt.pf f "%s %i" month y
 
   let pp f { version; date; sections } =
     match date with
     | None ->
-      Fmt.pf f "%s:\n%a\n" version Fmt.(list ~sep:(unit "\n\n") Section.pp) sections
+        Fmt.pf f "%s:\n%a\n" version
+          Fmt.(list ~sep:(unit "\n\n") Section.pp)
+          sections
     | Some (FullDate _ as date) ->
-      Fmt.pf f "%s (%a):\n%a\n" version pp_date date Fmt.(list ~sep:(unit "\n\n") Section.pp) sections
+        Fmt.pf f "%s (%a):\n%a\n" version pp_date date
+          Fmt.(list ~sep:(unit "\n\n") Section.pp)
+          sections
     | Some (MonthYear _ as date) ->
-      Fmt.pf f "%s [%a]\n%a\n" version pp_date date Fmt.(list ~sep:(unit "\n\n") Section.pp) sections
+        Fmt.pf f "%s [%a]\n%a\n" version pp_date date
+          Fmt.(list ~sep:(unit "\n\n") Section.pp)
+          sections
 end
 
 type t = Release.t list
@@ -92,6 +105,15 @@ module Parser = struct
 
   let ( *> ) x y = x >>= fun _ -> y
 
+  let hidden p s =
+      ( <?> ) p "" s
+
+  let colon = char ':'
+
+  let parens p = between (char '(') (char ')') p
+
+  let squares p = between (char '[') (char ']') p
+
   let rec skip_upto_count k p =
     match k with
     | 0 -> return ()
@@ -100,7 +122,11 @@ module Parser = struct
         | true -> skip_upto_count (k - 1) p
         | false -> return ())
 
-  let blanks = skip_many_chars blank
+  let clear_bullet_state =
+    get_user_state >>= fun state ->
+    set_user_state { state with change_bullet = None }
+
+  let blanks = hidden (skip_many_chars blank)
 
   let line = many_chars (not_followed_by newline "" *> any_char)
 
@@ -110,7 +136,7 @@ module Parser = struct
   let version_char = printable_char_no_space
 
   let version =
-    many1_chars (not_followed_by (blank <|> char ':') "" *> version_char)
+    many1_chars (not_followed_by (blank <|> colon) "" *> version_char) <* blanks
 
   let decimal =
     many1_chars digit >>= fun digits ->
@@ -126,10 +152,13 @@ module Parser = struct
         set_user_state { state with date_sep = Some sep } >>$ sep
     | { date_sep = Some sep; _ } -> char sep
 
+  (* Parse date of YYYY-MM-DD or YYYY/MM/DD. *)
   let date =
-    decimal >>= fun year -> date_sep >>= fun date_sep_char ->
-    decimal >>= fun month -> skip date_sep *>
-    decimal >>= fun day -> return @@ Release.FullDate (year, month, day, date_sep_char)
+    decimal >>= fun year ->
+    date_sep >>= fun date_sep_char ->
+    decimal >>= fun month ->
+    skip date_sep *> decimal >>= fun day ->
+    return @@ Release.FullDate (year, month, day, date_sep_char)
 
   let change_bullet =
     get_user_state >>= function
@@ -176,55 +205,52 @@ module Parser = struct
     followed_by change_start "not change start"
     *> (changes [] |>> fun changes -> { Section.title = None; changes })
     <|>
-    let end_of_title = char ':' *> newline <?> "end of title" in
+    let end_of_title = colon *> newline <?> "end of title" in
     many_chars (not_followed_by end_of_title "" *> any_char) >>= fun title ->
     skip end_of_title *> optional newline *> changes [] |>> fun changes ->
     { Section.title = Some title; changes }
 
-  let markdown_header_pre = skip_many (char '#')
+  let markdown_header_pre = skip_many (char '#') *> blanks
 
   let markdown_header_post = skip_many1_chars newline
 
   let month_name =
-    (string "Jan" *> return 1) <|>
-    (string "Feb" *> return 2) <|>
-    (string "Mar" *> return 3) <|>
-    (string "Apr" *> return 4) <|>
-    (string "May" *> return 5) <|>
-    (string "Jun" *> return 6) <|>
-    (string "Jul" *> return 7) <|>
-    (string "Aug" *> return 8) <|>
-    (string "Sep" *> return 9) <|>
-    (string "Oct" *> return 10) <|>
-    (string "Nov" *> return 11) <|>
-    (string "Dec" *> return 12)
+    choice
+      [
+        string "Jan" *> return 1;
+        string "Feb" *> return 2;
+        string "Mar" *> return 3;
+        string "Apr" *> return 4;
+        string "May" *> return 5;
+        string "Jun" *> return 6;
+        string "Jul" *> return 7;
+        string "Aug" *> return 8;
+        string "Sep" *> return 9;
+        string "Oct" *> return 10;
+        string "Nov" *> return 11;
+        string "Dec" *> return 12;
+      ]
+    <* blanks
 
   let month_year =
     month_name >>= fun month ->
-    blanks *>
-    (decimal <?> "year") >>= fun year ->
-    return @@ Release.MonthYear (month, year)
+    decimal <?> "year" >>= fun year -> return @@ Release.MonthYear (month, year)
 
   let release_date_or_release_name =
-    between (char '(') (char ')') (date <?> "(date)") <|>
-    between (char '[') (char ']') (month_year <?> "[Month Year]")
+    parens (date <?> "(date)") <|> squares (month_year <?> "[Month Year]")
 
   let release_header =
     (markdown_header_pre <?> "section before release_header")
-    *> blanks
     *> (version <?> "a non-empty, non-blank version string")
-    <* blanks
     >>= fun version ->
     option release_date_or_release_name
-    <* optional (char ':')
+    <* optional colon
     <* (markdown_header_post <?> "section after release_header")
     |>> fun date -> (version, date)
 
   let rec sections prev_sections =
     (* Clear change_bullet state. *)
-    get_user_state >>= fun state ->
-    set_user_state { state with change_bullet = None } *> section
-    >>= fun section ->
+    clear_bullet_state *> section >>= fun section ->
     followed_by (blank_line *> release_header) "not release header"
     <|> followed_by (optional newline *> eof) "not eof 1"
     |>> (fun () -> List.rev (section :: prev_sections))
@@ -242,8 +268,6 @@ module Parser = struct
 
   let v = releases []
 end
-
-module Error = struct end
 
 let of_ parse changelog =
   let ps = { Parser.date_sep = None; change_bullet = None; cur_change_d = 1 } in

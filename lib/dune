@@ -1,4 +1,6 @@
 (library
  (name changes)
  (public_name ocaml-changes)
- (libraries result fmt mparser astring))
+ (libraries result fmt mparser astring)
+ (instrumentation
+  (backend bisect_ppx)))
