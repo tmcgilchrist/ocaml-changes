@@ -1,0 +1,4 @@
+0.19.0 (2015-08-05):
+Compatibility breaking interface changes:
+* Remove `read_form` from the `Request/Response/Header` interfaces
+  as this should be done in `Body` handling instead (#401).

@@ -97,7 +97,7 @@ end
 
  *)
 module Section : sig
-  type t = { title : string option; changes : Change.t list }
+  type t = { title : (string * string option) option; changes : Change.t list }
 
   val pp : t Fmt.t
   (** Transform a [Section.t] to a string. *)
@@ -111,18 +111,18 @@ end
   the unreleased changes.
  *)
 module Release : sig
-  type date =
-    | FullDate of (int * int * int * char)
-    | MonthYear of (int * int)
+  type date = FullDate of (string * string * string * char) | MonthYear of (int * string) | Custom of string
+  type header = ATXHeader | SetextHeader of (char * int) | AsciiHeader of string option
+  type version = string * header
+
+  val pp_version : version Fmt.t
+
 
   val pp_date : date Fmt.t
   (** Transform a [date] to a string. *)
 
-  type t = {
-    version : string;
-    date : date option;
-    sections : Section.t list;
-  }
+  type t = { version : version; date : date option; sections : Section.t list }
+
 
   val pp : t Fmt.t
   (** Transform a [Release.t] to a string. *)

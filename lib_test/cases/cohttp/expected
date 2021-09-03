@@ -1,12 +1,12 @@
-0.20.2 (2016-04-04):
+0.20.2 (2016-04-04)
 * Update META version (#473)
 * uri.services is only required by cohttp.async
 
-0.20.1 (2016-04-01):
+0.20.1 (2016-04-01)
 * Switch cohttp to use ppx (#457)
 * Lwt: Fix leak on HEAD client requests (#467)
 
-0.20.0 (2016-03-25):
+0.20.0 (2016-03-25)
 * Switch to pa_fields_conv and pa_sexp_conv for camlp4 extensions (#465)
 * Compatibility with latest async (#468)
 * Async: Add support for SSL parameters in client (#466)
@@ -275,7 +275,7 @@ New features and bugfixes:
 * Reduce thread allocation by replacing `return <const>` with `return_none`,
   `return_unit` or `return_nil`.
 
-0.11.2 (2014-04-21):
+0.11.2 (2014-04-21)
 * Fix build by add a missing build-deps in _oasis.
 
 0.11.1 (2014-04-17):

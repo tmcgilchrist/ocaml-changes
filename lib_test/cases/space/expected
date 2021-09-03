@@ -1,4 +1,4 @@
-Error in line 1, column 2:
+Error in line 1, column 1:
  
- ^
-Expecting a non-empty, non-blank version string or space or tab
+^
+Expecting '#' or a non-empty, non-blank version string
