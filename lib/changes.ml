@@ -37,13 +37,14 @@ module Change = struct
 end
 
 module Section = struct
-  type t = { title : string option; changes : Change.t list }
+  type t = { title : (string * string option) option; changes : Change.t list }
 
   let pp f = function
     | { title = None; changes } ->
         Fmt.pf f "%a" Fmt.(list ~sep:(unit "\n") Change.pp) changes
-    | { title = Some title; changes } ->
-        Fmt.pf f "%s:\n%a" title Fmt.(list ~sep:(unit "\n") Change.pp) changes
+    | { title = Some (title, a); changes } ->
+       let sep = Option.value ~default:"" a in
+       Fmt.pf f "%s%s\n%a" title sep Fmt.(list ~sep:(unit "\n") Change.pp) changes
 end
 
 module Release = struct
@@ -57,7 +58,7 @@ module Release = struct
 
   let pp_version f = function
     | (str, ATXHeader) -> Fmt.pf f "#%s" str
-    | (str, SetextHeader) -> Fmt.pf f "%s\n----------" str
+    | (str, SetextHeader) -> Fmt.pf f "%s\n----------" str (* TODO Capture the type of underlining*)
     | (str, AsciiHeader (Some c)) -> Fmt.pf f "%s%s" str c
     | (str, AsciiHeader None) -> Fmt.pf f "%s" str
 
@@ -84,7 +85,7 @@ module Release = struct
         let month = Option.value ~default:"Jan" (List.assoc_opt m months) in
         Fmt.pf f "[%s %i]" month y
 
-(*
+(* Variants of headers:
 
 Header
 ----
@@ -223,14 +224,21 @@ module Parser = struct
     |>> (fun () -> List.rev (delta :: prev_changes))
     <|> newline *> changes (delta :: prev_changes)
 
+  (*
+    SectionHeader
+
+    SectionHeader:
+
+*)
   let section =
     followed_by change_start "not change start"
     *> (changes [] |>> fun changes -> { Section.title = None; changes })
     <|>
-    let end_of_title = colon *> newline <?> "end of title" in
-    many_chars (not_followed_by end_of_title "" *> any_char) >>= fun title ->
-    skip end_of_title *> optional newline *> changes [] |>> fun changes ->
-    { Section.title = Some title; changes }
+    let end_of_title = (colon <* newline)  <?> "end of title" in
+
+    many1_chars (not_followed_by end_of_title "No end of title" *> any_char) >>= fun title ->
+    option end_of_title >>= fun sep ->  optional newline *> opt [] (changes []) |>> fun changes ->
+    { Section.title = Some (title, Option.map (String.make 1) sep); changes }
 
   let month_name =
     choice [
@@ -281,13 +289,10 @@ module Parser = struct
     not_followed_by (string "==" <|> string "--") "ascii_header" *>
     return ((version, Release.AsciiHeader colon), date)
 
-  (* TODO Cleanup the use of blanks, provide as a wrapper function for certain tokens. See angsrtom http parser example. *)
   let release_header =
     (atx_markdown_header >>= fun (version, date) -> return ((version, Release.ATXHeader), date))
     <|> attempt (setext_markdown_header >>= fun (version, date) -> return ((version, Release.SetextHeader), date))
     <|> ascii_header
-
-(* TODO Parsing of plain headers is broken now re-instate HERE! *)
 
   let rec sections prev_sections =
     (* Clear change_bullet state. *)

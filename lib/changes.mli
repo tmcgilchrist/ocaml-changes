@@ -97,7 +97,7 @@ end
 
  *)
 module Section : sig
-  type t = { title : string option; changes : Change.t list }
+  type t = { title : (string * string option) option; changes : Change.t list }
 
   val pp : t Fmt.t
   (** Transform a [Section.t] to a string. *)
