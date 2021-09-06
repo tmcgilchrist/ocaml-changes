@@ -48,8 +48,8 @@ end
 
 module Release = struct
   type date = FullDate of (int * int * int * char) | MonthYear of (int * int)
-  type header = ATXHeader | SetextHeader | AsciiHeader
-  type version = string *header
+  type header = ATXHeader | SetextHeader | AsciiHeader of string option
+  type version = string * header
   type t = { version : version
            ; date : date option
            ; sections : Section.t list
@@ -58,7 +58,8 @@ module Release = struct
   let pp_version f = function
     | (str, ATXHeader) -> Fmt.pf f "#%s" str
     | (str, SetextHeader) -> Fmt.pf f "%s\n----------" str
-    | (str, AsciiHeader) -> Fmt.pf f "%s:" str
+    | (str, AsciiHeader (Some c)) -> Fmt.pf f "%s%s" str c
+    | (str, AsciiHeader None) -> Fmt.pf f "%s" str
 
   let pp_date f = function
     | FullDate (y, m, d, date_sep) ->
@@ -94,34 +95,28 @@ Header (date)
 ## Header:
 ## Header (date):
 ## Header (date)
->>>>>>> Stashed changes
 
+Header [date]
+Header [date]:
+Header (date)
+Header (date):
 *)
   let pp f { version; date; sections } =
     let date_str = Option.map (fun x -> Fmt.strf " %a" pp_date x) date
                    |> Option.value ~default:"" in
     match version with
     | (str, ATXHeader) ->
-      Fmt.pf f "#%s%s:\n%a\n" str date_str
+      Fmt.pf f "# %s%s:\n%a\n" str date_str
         Fmt.(list ~sep:(unit "\n\n") Section.pp)
         sections
     | (str, SetextHeader) ->
       Fmt.pf f "%s%s\n----------\n%a\n" str date_str
         Fmt.(list ~sep:(unit "\n\n") Section.pp)
         sections
-    | (str, AsciiHeader) ->
-        Fmt.pf f "%s%s:\n%a\n" str date_str Fmt.(list ~sep:(unit "\n\n") Section.pp) sections
-
-
-    (* match date with
-     * | None ->
-     *     Fmt.pf f "%a:\n%a\n" pp_version version
-     *       Fmt.(list ~sep:(unit "\n\n") Section.pp)
-     *       sections
-     * | Some date ->
-     *     Fmt.pf f "%a %a:\n%a\n" pp_version version pp_date date
-     *       Fmt.(list ~sep:(unit "\n\n") Section.pp)
-     *       sections *)
+    | (str, AsciiHeader (Some c)) ->
+       Fmt.pf f "%s%s%s\n%a\n" str date_str c Fmt.(list ~sep:(unit "\n\n") Section.pp) sections
+    | (str, AsciiHeader None) ->
+        Fmt.pf f "%s%s\n%a\n" str date_str Fmt.(list ~sep:(unit "\n\n") Section.pp) sections
 end
 
 type t = Release.t list
@@ -280,9 +275,11 @@ module Parser = struct
   (* version (date?)(:?) *)
   let ascii_header =
     version >>= fun version ->
-    option release_date_or_release_name <* option (char ':') <* skip_many1_chars newline <* not_followed_by (string "==" <|> string "--") "ascii_header"
-    >>= fun date ->
-    return ((version, Release.AsciiHeader), date)
+    option release_date_or_release_name >>= fun date ->
+    option (string ":") >>= fun colon ->
+    skip_many1_chars newline *>
+    not_followed_by (string "==" <|> string "--") "ascii_header" *>
+    return ((version, Release.AsciiHeader colon), date)
 
   (* TODO Cleanup the use of blanks, provide as a wrapper function for certain tokens. See angsrtom http parser example. *)
   let release_header =

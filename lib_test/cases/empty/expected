@@ -1,3 +1,4 @@
 Error in line 1, column 1:
 
-Expecting a non-empty, non-blank version string or section before release_header
+Unexpected end of input
+Expecting '#' or a non-empty, non-blank version string

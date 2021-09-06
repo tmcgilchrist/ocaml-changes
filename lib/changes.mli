@@ -112,7 +112,7 @@ end
  *)
 module Release : sig
   type date = FullDate of (int * int * int * char) | MonthYear of (int * int)
-  type header = ATXHeader | SetextHeader | AsciiHeader
+  type header = ATXHeader | SetextHeader | AsciiHeader of string option
   type version = string * header
 
   val pp_version : version Fmt.t
