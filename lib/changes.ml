@@ -48,12 +48,21 @@ end
 
 module Release = struct
   type date = FullDate of (int * int * int * char) | MonthYear of (int * int)
+  type header = ATXHeader | SetextHeader | AsciiHeader
+  type version = string *header
+  type t = { version : version
+           ; date : date option
+           ; sections : Section.t list
+           }
 
-  type t = { version : string; date : date option; sections : Section.t list }
+  let pp_version f = function
+    | (str, ATXHeader) -> Fmt.pf f "#%s" str
+    | (str, SetextHeader) -> Fmt.pf f "%s\n----------" str
+    | (str, AsciiHeader) -> Fmt.pf f "%s:" str
 
   let pp_date f = function
     | FullDate (y, m, d, date_sep) ->
-        Fmt.pf f "%d%c%02d%c%02d" y date_sep m date_sep d
+        Fmt.pf f "(%d%c%02d%c%02d)" y date_sep m date_sep d
     | MonthYear (m, y) ->
         let months =
           [
@@ -72,22 +81,47 @@ module Release = struct
           ]
         in
         let month = Option.value ~default:"Jan" (List.assoc_opt m months) in
-        Fmt.pf f "%s %i" month y
+        Fmt.pf f "[%s %i]" month y
 
+(*
+
+Header
+----
+
+Header (date)
+=====
+
+## Header:
+## Header (date):
+## Header (date)
+>>>>>>> Stashed changes
+
+*)
   let pp f { version; date; sections } =
-    match date with
-    | None ->
-        Fmt.pf f "%s:\n%a\n" version
-          Fmt.(list ~sep:(unit "\n\n") Section.pp)
-          sections
-    | Some (FullDate _ as date) ->
-        Fmt.pf f "%s (%a):\n%a\n" version pp_date date
-          Fmt.(list ~sep:(unit "\n\n") Section.pp)
-          sections
-    | Some (MonthYear _ as date) ->
-        Fmt.pf f "%s [%a]\n%a\n" version pp_date date
-          Fmt.(list ~sep:(unit "\n\n") Section.pp)
-          sections
+    let date_str = Option.map (fun x -> Fmt.strf " %a" pp_date x) date
+                   |> Option.value ~default:"" in
+    match version with
+    | (str, ATXHeader) ->
+      Fmt.pf f "#%s%s:\n%a\n" str date_str
+        Fmt.(list ~sep:(unit "\n\n") Section.pp)
+        sections
+    | (str, SetextHeader) ->
+      Fmt.pf f "%s%s\n----------\n%a\n" str date_str
+        Fmt.(list ~sep:(unit "\n\n") Section.pp)
+        sections
+    | (str, AsciiHeader) ->
+        Fmt.pf f "%s%s:\n%a\n" str date_str Fmt.(list ~sep:(unit "\n\n") Section.pp) sections
+
+
+    (* match date with
+     * | None ->
+     *     Fmt.pf f "%a:\n%a\n" pp_version version
+     *       Fmt.(list ~sep:(unit "\n\n") Section.pp)
+     *       sections
+     * | Some date ->
+     *     Fmt.pf f "%a %a:\n%a\n" pp_version version pp_date date
+     *       Fmt.(list ~sep:(unit "\n\n") Section.pp)
+     *       sections *)
 end
 
 type t = Release.t list
@@ -203,43 +237,60 @@ module Parser = struct
     skip end_of_title *> optional newline *> changes [] |>> fun changes ->
     { Section.title = Some title; changes }
 
-  let markdown_header_pre = skip_many (char '#') *> blanks
-
-  let markdown_header_post = skip_many1_chars newline
-
   let month_name =
-    choice
-      [
-        string "Jan" *> return 1;
-        string "Feb" *> return 2;
-        string "Mar" *> return 3;
-        string "Apr" *> return 4;
-        string "May" *> return 5;
-        string "Jun" *> return 6;
-        string "Jul" *> return 7;
-        string "Aug" *> return 8;
-        string "Sep" *> return 9;
-        string "Oct" *> return 10;
-        string "Nov" *> return 11;
-        string "Dec" *> return 12;
+    choice [
+        string "Jan" *> return 1
+      ; string "Feb" *> return 2
+      ; string "Mar" *> return 3
+      ; string "Apr" *> return 4
+      ; string "May" *> return 5
+      ; string "Jun" *> return 6
+      ; string "Jul" *> return 7
+      ; string "Aug" *> return 8
+      ; string "Sep" *> return 9
+      ; string "Oct" *> return 10
+      ; string "Nov" *> return 11
+      ; string "Dec" *> return 12
       ]
-    <* blanks
 
   let month_year =
     month_name >>= fun month ->
-    decimal <?> "year" >>= fun year -> return @@ Release.MonthYear (month, year)
+    blanks *> decimal >>= fun year -> return @@ Release.MonthYear (month, year)
 
   let release_date_or_release_name =
-    parens (date <?> "(date)") <|> squares (month_year <?> "[Month Year]")
+    parens date <|> squares month_year
 
+  let release_version =
+    version <?> "a non-empty, non-blank version string" >>= fun version ->
+    option release_date_or_release_name |>> fun date ->
+    (version, date)
+
+  let atx_markdown_header =
+    let markdown_header_pre = skip_many1 (char '#') in
+    let markdown_header_post = skip_many1_chars newline in
+
+    between
+      (markdown_header_pre  *> blanks)
+      (optional (char ':') <* markdown_header_post)
+      release_version
+
+  let setext_markdown_header =
+    release_version <* (skip_many1_chars newline *> skip_many1_chars (char '-' <|> char '=') *> skip_many1_chars newline)
+
+  (* version (date?)(:?) *)
+  let ascii_header =
+    version >>= fun version ->
+    option release_date_or_release_name <* option (char ':') <* skip_many1_chars newline <* not_followed_by (string "==" <|> string "--") "ascii_header"
+    >>= fun date ->
+    return ((version, Release.AsciiHeader), date)
+
+  (* TODO Cleanup the use of blanks, provide as a wrapper function for certain tokens. See angsrtom http parser example. *)
   let release_header =
-    (markdown_header_pre <?> "section before release_header")
-    *> (version <?> "a non-empty, non-blank version string")
-    >>= fun version ->
-    option release_date_or_release_name
-    <* optional colon
-    <* (markdown_header_post <?> "section after release_header")
-    |>> fun date -> (version, date)
+    (atx_markdown_header >>= fun (version, date) -> return ((version, Release.ATXHeader), date))
+    <|> attempt (setext_markdown_header >>= fun (version, date) -> return ((version, Release.SetextHeader), date))
+    <|> ascii_header
+
+(* TODO Parsing of plain headers is broken now re-instate HERE! *)
 
   let rec sections prev_sections =
     (* Clear change_bullet state. *)

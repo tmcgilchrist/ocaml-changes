@@ -112,11 +112,17 @@ end
  *)
 module Release : sig
   type date = FullDate of (int * int * int * char) | MonthYear of (int * int)
+  type header = ATXHeader | SetextHeader | AsciiHeader
+  type version = string * header
+
+  val pp_version : version Fmt.t
+
 
   val pp_date : date Fmt.t
   (** Transform a [date] to a string. *)
 
-  type t = { version : string; date : date option; sections : Section.t list }
+  type t = { version : version; date : date option; sections : Section.t list }
+
 
   val pp : t Fmt.t
   (** Transform a [Release.t] to a string. *)
