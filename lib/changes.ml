@@ -224,20 +224,24 @@ module Parser = struct
     |>> (fun () -> List.rev (delta :: prev_changes))
     <|> newline *> changes (delta :: prev_changes)
 
-  (*
-    SectionHeader
-
-    SectionHeader:
-
-*)
-  let section =
+  let no_section_header =
     followed_by change_start "not change start"
     *> (changes [] |>> fun changes -> { Section.title = None; changes })
-    <|>
-    let end_of_title = (colon <* newline)  <?> "end of title" in
 
+
+  (*
+   Options here:
+   1. Straight into bullet points for changes
+   2. SectionHeader with just newline
+   3. SectionHeader: with colon and newline
+  *)
+  let section =
+    no_section_header
+    <|>
+    let end_of_title = (option colon <* newline) <?> "end of title1" in
+    let end_of_title_2 = (option colon <* newline) <?> "end of title2" in
     many1_chars (not_followed_by end_of_title "No end of title" *> any_char) >>= fun title ->
-    option end_of_title >>= fun sep ->  optional newline *> opt [] (changes []) |>> fun changes ->
+    end_of_title_2 >>= fun sep -> optional newline *> opt [] (changes []) |>> fun changes ->
     { Section.title = Some (title, Option.map (String.make 1) sep); changes }
 
   let month_name =
@@ -274,7 +278,7 @@ module Parser = struct
 
     between
       (markdown_header_pre  *> blanks)
-      (optional (char ':') <* markdown_header_post)
+      (optional colon <* markdown_header_post)
       release_version
 
   let setext_markdown_header =

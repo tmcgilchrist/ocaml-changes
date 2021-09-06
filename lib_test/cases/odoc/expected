@@ -12,7 +12,6 @@ Bugs fixes
 
 2.0.0~beta3
 ----------
-
 Breaking changes
 - Refactor the comment parser in preparation for it to be octavius 2 (@jonludlam, #621)
 
@@ -32,15 +31,12 @@ Bugs fixed
 
 2.0.0~beta2
 ----------
-
 Additions
-
 - Add the ability to specifiy canonical paths for types and module types (@jonludlam, #596)
 - Several improvements to the HTML tree (@dbuenzli, #600, #605, #589, @Drup, #579)
 - Render module synopses in `{!modules:...}` (@Julow, #597)
 
 Bugs fixed
-
 - Fix for resolving references in mld files (@jonludlam, #611)
 - Fix placement of documentation in module aliases (@Julow, #606)
 - Fix breakage involving includes and shadowing (@jonludlam, #603)
@@ -49,30 +45,23 @@ Bugs fixed
 - Don't render shadowed values (@lubegasimon, #580)
 - Fix unresolved references in the first comment of a file (@Julow, #592)
 
-
 2.0.0~beta1
 ----------
-
 - New model for expanding and cross referencing (@jonludlam, @Julow, @lubegasimon)
 - New document output layer, supporting HTML, LaTeX and man page output (@Drup, @Octachron, @jonludlam, @Julow, @lubegasimon)
 - Experimental parent/child support for structured output (@jonludlam)
 
 1.5.1
 ----------
-
 Additions
-
 - Compatibility with OCaml 4.11 (#434, @kit-ty-kate)
 
 1.5.0
 ----------
-
 Additions
-
 - Add option to turn warnings into errors (#398, Jules Aguillon)
 
 Bugs fixed
-
 - Emit quote before identifier in alias type expr (Fixes #391, Anton Bachin)
 - Handle generalized open statements introduced in 4.08 (#393, Jon Ludlam)
 - Refactor error reporting to avoid exiting the program in library code
@@ -81,9 +70,7 @@ Bugs fixed
 
 1.4.2
 ----------
-
 Bugs fixed
-
 - Build on OCaml 4.09 (#383, Anil Madhavapeddy).
 - Handle OCaml 4.08 type and module substitutions (#381, Jon Ludlam).
 - Parser: better trimming of leading whitespace in code blocks (#370, Jules
@@ -97,9 +84,7 @@ Bugs fixed
 
 1.4.1
 ----------
-
 Bugs fixed
-
 - Messy formatting in large definitions due to lack of `<span>`s (#360, Thomas
   Refis).
 - Missing table of contents on `.mld` pages (#361, Rizo Isrof).
@@ -116,9 +101,7 @@ Bugs fixed
 
 1.4.0
 ----------
-
 Changes
-
 - All parsing errors are now recoverable warnings (#238).
 - Page titles are now level-0 headings (`{0 ...}`), and top-level sections
   within a page are level-1 headings (`{1 ...}`) (#217, Rizo Isrof).
@@ -128,7 +111,6 @@ Changes
 - Deprecate redundant reference kind annotations (#246).
 
 Additions
-
 - Preliminary compatibility with the current 4.08 beta releases (#309, Jon
   Ludlam).
 - Paragraph headings (`{4 ...}`) and subparagraph headings (`{5 ...}`) (#217,
@@ -138,7 +120,6 @@ Additions
   odoc with BuckleScript (#269, Leandro Ostera).
 
 Bugs fixed
-
 - Improve breadcrumbs on `.mld` pages (#293, Daniel Buenzli).
 - Display tables of contents in nested module and class pages (#261, Rizo
   Isrof).
@@ -186,7 +167,6 @@ Bugs fixed
 - Binary files not opened in binary mode (#281, Ulrik Strid).
 
 Build and development
-
 - Always print backtraces for unhandled exceptions (3d10feb).
 - CI on macOS (#216, Leandro Ostera).
 - Test runner improvements (#266, Rizo Isrof).
@@ -200,9 +180,7 @@ Build and development
 
 1.3.0
 ----------
-
 Additions
-
 - Reason syntax output (#156, Patrick Stapfer).
 - BuckleScript support (#179, Leandro Ostera).
 - New CSS, appearance (#139, Rizo Isrof).
@@ -217,7 +195,6 @@ Additions
   (#166, Rizo Isrof).
 
 Bugs fixed
-
 - Use regular dashes in arrows to support ligature fonts (#180, Leandro
   Ostera).
 - Do not excessively indent code blocks (#133, Bobby Priambodo).
@@ -235,7 +212,6 @@ Bugs fixed
   Priambodo, Thomas Refis, Patrick Stapfer).
 
 Build and development
-
 - `odoc` is now one repo.
 - Dropped several dependencies.
 - Considerable refactoring.
@@ -247,7 +223,6 @@ Build and development
 
 1.2.0
 ----------
-
 - Support for standalone documentation pages (`.mld` files) (#61).
 - Display `[@@deprecated]` attributes as the `@deprecated` tag (#57).
 - Allow each component of OCaml paths to be disambiguated using the `kind-identifer` syntax (part of #61).
@@ -256,7 +231,6 @@ Build and development
 
 1.1.1
 ----------
-
 - make odoc more noisy when generating html for hidden units
 
 - changed `html-deps` subcommand behavior: it now expects to be given a
@@ -264,10 +238,9 @@ Build and development
 
 1.1.0
 ----------
-
 - switch to jbuilder
 
 1.0.0
 ----------
-
 Initial release.
+
