@@ -48,8 +48,8 @@ module Section = struct
 end
 
 module Release = struct
-  type date = FullDate of (int * int * int * char) | MonthYear of (int * int)
-  type header = ATXHeader | SetextHeader | AsciiHeader of string option
+  type date = FullDate of (string * string * string * char) | MonthYear of (int * string) | Custom of string
+  type header = ATXHeader | SetextHeader of (char * int) | AsciiHeader of string option
   type version = string * header
   type t = { version : version
            ; date : date option
@@ -58,13 +58,14 @@ module Release = struct
 
   let pp_version f = function
     | (str, ATXHeader) -> Fmt.pf f "#%s" str
-    | (str, SetextHeader) -> Fmt.pf f "%s\n----------" str (* TODO Capture the type of underlining*)
+    | (str, SetextHeader(c, n)) -> Fmt.pf f "%s\n%s" (String.make n c) str
     | (str, AsciiHeader (Some c)) -> Fmt.pf f "%s%s" str c
     | (str, AsciiHeader None) -> Fmt.pf f "%s" str
 
   let pp_date f = function
+    | Custom str -> Fmt.pf f "(%s)" str
     | FullDate (y, m, d, date_sep) ->
-        Fmt.pf f "(%d%c%02d%c%02d)" y date_sep m date_sep d
+        Fmt.pf f "(%s%c%s%c%s)" y date_sep m date_sep d
     | MonthYear (m, y) ->
         let months =
           [
@@ -83,7 +84,7 @@ module Release = struct
           ]
         in
         let month = Option.value ~default:"Jan" (List.assoc_opt m months) in
-        Fmt.pf f "[%s %i]" month y
+        Fmt.pf f "[%s %s]" month y
 
 (* Variants of headers:
 
@@ -110,8 +111,8 @@ Header (date):
       Fmt.pf f "# %s%s:\n%a\n" str date_str
         Fmt.(list ~sep:(unit "\n\n") Section.pp)
         sections
-    | (str, SetextHeader) ->
-      Fmt.pf f "%s%s\n----------\n%a\n" str date_str
+    | (str, SetextHeader(c, n)) ->
+      Fmt.pf f "%s%s\n%s\n%a\n" str date_str (String.make n c)
         Fmt.(list ~sep:(unit "\n\n") Section.pp)
         sections
     | (str, AsciiHeader (Some c)) ->
@@ -161,12 +162,7 @@ module Parser = struct
   let version =
     many1_chars (not_followed_by (blank <|> colon) "" *> version_char) <* blanks
 
-  let decimal =
-    many1_chars digit >>= fun digits ->
-    let r = int_of_string_opt digits in
-    match r with
-    | None -> message ("couldn't create integer from " ^ digits)
-    | Some r -> return r
+  let decimal = many1_chars digit
 
   let date_sep =
     get_user_state >>= function
@@ -239,7 +235,7 @@ module Parser = struct
     no_section_header
     <|>
     let end_of_title = (option colon <* newline) <?> "end of title1" in
-    let end_of_title_2 = (option colon <* newline) <?> "end of title2" in
+    let end_of_title_2 = (option colon <* (optional newline <|> eof)) <?> "end of title2" in
     many1_chars (not_followed_by end_of_title "No end of title" *> any_char) >>= fun title ->
     end_of_title_2 >>= fun sep -> optional newline *> opt [] (changes []) |>> fun changes ->
     { Section.title = Some (title, Option.map (String.make 1) sep); changes }
@@ -264,8 +260,11 @@ module Parser = struct
     month_name >>= fun month ->
     blanks *> decimal >>= fun year -> return @@ Release.MonthYear (month, year)
 
+  let custom_date =
+    many1 alphanum >>= fun x -> return @@ Release.Custom (String.of_seq @@ List.to_seq x)
+
   let release_date_or_release_name =
-    parens date <|> squares month_year
+    parens (date <|> custom_date) <|> squares month_year
 
   let release_version =
     version <?> "a non-empty, non-blank version string" >>= fun version ->
@@ -282,7 +281,10 @@ module Parser = struct
       release_version
 
   let setext_markdown_header =
-    release_version <* (skip_many1_chars newline *> skip_many1_chars (char '-' <|> char '=') *> skip_many1_chars newline)
+    release_version >>= fun (version, date) ->
+    skip_many1_chars newline *> many1_chars (char '-' <|> char '=') >>= fun chars ->
+    skip_many1_chars newline *> return (version, date, (String.get chars 0, String.length chars))
+    (* release_version <* (skip_many1_chars newline *> skip_many1_chars (char '-' <|> char '=') *> skip_many1_chars newline) *)
 
   (* version (date?)(:?) *)
   let ascii_header =
@@ -295,7 +297,9 @@ module Parser = struct
 
   let release_header =
     (atx_markdown_header >>= fun (version, date) -> return ((version, Release.ATXHeader), date))
-    <|> attempt (setext_markdown_header >>= fun (version, date) -> return ((version, Release.SetextHeader), date))
+    <|> attempt (setext_markdown_header >>= fun (version, date, header) ->
+
+                 return ((version, Release.SetextHeader header), date))
     <|> ascii_header
 
   let rec sections prev_sections =
