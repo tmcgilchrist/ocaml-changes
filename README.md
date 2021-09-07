@@ -67,6 +67,10 @@ either:
 TODO
 ----------
 
+ * support `#### Deprecated` headers (dune-release and ocamlformat)
+ * prefix paragraphs or generally between headers, probably should make these `Change.t`
+ * support date format `(4 October 2018)` for ocaml CHANGES
+
  * integrate into dune-release, which needs to read the first section in the CHANGELOG,
    modify it, and include it in the PR comment for creating against ocaml/opam-repository.
    eg https://github.com/ocaml/opam-repository/pull/19377

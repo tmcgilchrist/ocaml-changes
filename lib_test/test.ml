@@ -89,14 +89,14 @@ let title_pp f = function
   | Some (title, None) -> Fmt.pf f "%s" title
   | None -> Fmt.pf f ""
 
-
 let title_m =
   let module M = struct
-      type t = (string * string option) option
+    type t = (string * string option) option
 
-      let pp = title_pp
-      let equal = ( = )
-    end in
+    let pp = title_pp
+
+    let equal = ( = )
+  end in
   (module M : Alcotest.TESTABLE with type t = M.t)
 
 let diff expected output =
@@ -120,7 +120,6 @@ let diff expected output =
             ("section title in " ^ version)
             expected.title output.title;
           let title = version ^ "/" ^ Fmt.strf "%a" title_pp expected.title in
-(* Option.value ~default:"" expected.title in *)
           Alcotest.(check int)
             ("number of changes in " ^ title)
             (List.length expected.changes)

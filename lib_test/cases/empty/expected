@@ -1,4 +1,3 @@
 Error in line 1, column 1:
 
-Unexpected end of input
-Expecting '#' or a non-empty, non-blank version string
+Expecting ' ', '#', '+', '.', '~', a non-empty, non-blank version string or letter or digit

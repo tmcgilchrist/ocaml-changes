@@ -111,18 +111,25 @@ end
   the unreleased changes.
  *)
 module Release : sig
-  type date = FullDate of (string * string * string * char) | MonthYear of (int * string) | Custom of string
-  type header = ATXHeader | SetextHeader of (char * int) | AsciiHeader of string option
+  type date =
+    | FullDate of (string * string * string * char)
+    | MonthYear of (int * string)
+    | DayMonthYear of (string * string * string)
+    | Custom of string
+
+  type header =
+    | ATXHeader
+    | SetextHeader of (char * int)
+    | AsciiHeader of string option
+
   type version = string * header
 
   val pp_version : version Fmt.t
-
 
   val pp_date : date Fmt.t
   (** Transform a [date] to a string. *)
 
   type t = { version : version; date : date option; sections : Section.t list }
-
 
   val pp : t Fmt.t
   (** Transform a [Release.t] to a string. *)
