@@ -848,7 +848,7 @@ Unreleased
 - Enable `(explicit_js_mode)` by default. (#1941, @nojb)
 
 - Add an option to clear the console in-between builds with
- `--terminal-persistence=clear-on-rebuild`
+  `--terminal-persistence=clear-on-rebuild`
 
 - Stop symlinking object files to main directory for stanzas defined `jbuild`
   files (#2440, @rgrinberg)
@@ -2018,7 +2018,7 @@ Unreleased
 
 - Improve the syntax of flags in `(pps ...)`. Now instead of `(pps
   (ppx1 -arg1 ppx2 (-foo x)))` one should write `(pps ppx1 -arg ppx2
-  -- -foo x)` which looks nicer (#910, @diml)
+- - -foo x)` which looks nicer (#910, @diml)
 
 - Make `(diff a b)` ignore trailing cr on Windows and add `(cmp a b)` for
   comparing binary files (#904, fix #844, @diml)
@@ -2504,10 +2504,10 @@ Unreleased
   instance: `(run foo ${!^})`
 
 - Add support for using the contents of a file inside an action:
-  - `${read:<file>}`
-  - `${read-lines:<file>}`
-  - `${read-strings:<file>}` (same as `read-lines` but lines are
-    escaped using OCaml convention)
+- `${read:<file>}`
+- `${read-lines:<file>}`
+- `${read-strings:<file>}` (same as `read-lines` but lines are
+  escaped using OCaml convention)
 
 - When exiting prematurely because of a failure, if there are other
   background processes running and they fail, print these failures
@@ -2583,9 +2583,9 @@ Unreleased
 
 - Ignore all directories starting with a `.` or `_`. This seems to be
   a common pattern:
-  - `.git`, `.hg`, `_darcs`
-  - `_build`
-  - `_opam` (opam 2 local switches)
+- `.git`, `.hg`, `_darcs`
+- `_build`
+- `_opam` (opam 2 local switches)
 
 - Fix the hint for `jbuilder external-lib-deps` (#72)
 
@@ -2679,8 +2679,8 @@ Unreleased
    external-lib-deps --missing`
 
 - Added a few forms to the DSL:
-  - `with-{stderr,outputs}-to`
-  - `ignore-{stdout,stderr,outputs}`
+- `with-{stderr,outputs}-to`
+- `ignore-{stdout,stderr,outputs}`
 - Added `${null}` which expands to `/dev/null` on Unix and `NUL` on
   Windows
 
@@ -2785,3 +2785,4 @@ Unreleased
 0.1.alpha1 (04/12/2016)
 -----------------------
 First release
+

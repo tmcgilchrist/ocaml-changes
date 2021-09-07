@@ -84,20 +84,19 @@ let version_m =
   end in
   (module M : Alcotest.TESTABLE with type t = M.t)
 
-let title_pp f = function
-  | Some (title, Some sep1) -> Fmt.pf f "%s%s" title sep1
-  | Some (title, None) -> Fmt.pf f "%s" title
-  | None -> Fmt.pf f ""
-
 let title_m =
   let module M = struct
-    type t = (string * string option) option
+    type t = Changes.Section.header
 
-    let pp = title_pp
+    let pp = Changes.Section.pp_header
 
     let equal = ( = )
   end in
   (module M : Alcotest.TESTABLE with type t = M.t)
+
+let pp_header_opt f = function
+  | Some header -> Changes.Section.pp_header f header
+  | None -> ()
 
 let diff expected output =
   let open Changes in
@@ -116,10 +115,12 @@ let diff expected output =
       List.iter2
         (fun expected output ->
           let open Section in
-          Alcotest.(check title_m)
+          Alcotest.(check (option title_m))
             ("section title in " ^ version)
             expected.title output.title;
-          let title = version ^ "/" ^ Fmt.strf "%a" title_pp expected.title in
+          let title =
+            version ^ "/" ^ Fmt.strf "%a" pp_header_opt expected.title
+          in
           Alcotest.(check int)
             ("number of changes in " ^ title)
             (List.length expected.changes)

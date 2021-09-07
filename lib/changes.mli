@@ -97,7 +97,16 @@ end
 
  *)
 module Section : sig
-  type t = { title : (string * string option) option; changes : Change.t list }
+  type format =
+    | AtxHeader of int
+    | SetextHeader of (char * int)
+    | AsciiHeader of char option
+
+  type header = string * format
+
+  type t = { title : header option; changes : Change.t list }
+
+  val pp_header : header Fmt.t
 
   val pp : t Fmt.t
   (** Transform a [Section.t] to a string. *)

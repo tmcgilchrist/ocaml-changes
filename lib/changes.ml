@@ -37,14 +37,26 @@ module Change = struct
 end
 
 module Section = struct
-  type t = { title : (string * string option) option; changes : Change.t list }
+  type format =
+    | AtxHeader of int
+    | SetextHeader of (char * int)
+    | AsciiHeader of char option
+
+  type header = string * format
+
+  type t = { title : header option; changes : Change.t list }
+
+  let pp_header f = function
+    | str, AtxHeader n -> Fmt.pf f "%s%s" (String.make n '#') str
+    | str, SetextHeader (c, n) -> Fmt.pf f "%s\n%s" (String.make n c) str
+    | str, AsciiHeader (Some c) -> Fmt.pf f "%s%c" str c
+    | str, AsciiHeader None -> Fmt.pf f "%s" str
 
   let pp f = function
     | { title = None; changes } ->
         Fmt.pf f "%a" Fmt.(list ~sep:(unit "\n") Change.pp) changes
-    | { title = Some (title, a); changes } ->
-        let sep = Option.value ~default:"" a in
-        Fmt.pf f "%s%s\n%a" title sep
+    | { title = Some header; changes } ->
+        Fmt.pf f "%a\n%a" pp_header header
           Fmt.(list ~sep:(unit "\n") Change.pp)
           changes
 end
@@ -54,8 +66,8 @@ module Release = struct
     | FullDate of (string * string * string * char) (* 04/08/2018 *)
     | MonthYear of (int * string) (* Oct 2018 *)
     | DayMonthYear of (string * string * string) (* 4 October 2018 *)
+    (* unreleased *)
     | Custom of string
-  (* unreleased *)
 
   type header =
     | ATXHeader
@@ -171,17 +183,13 @@ module Parser = struct
 
   let line = many_chars (not_followed_by newline "" *> any_char)
 
-  (* let printable_char_no_space = (\* TODO Unicode pain here! *\) *)
-  (*   any_of (String.init (126 - 33 + 1) (fun x -> Char.chr (x + 33))) *)
-
-  let version_char = alphanum <|> char ' ' <|> char '.' <|> char '~' <|> char '+'
-
-  (* printable_char_no_space *)
+  let version_char =
+    alphanum <|> char ' ' <|> char '.' <|> char '~' <|> char '+'
 
   let version =
     many1_chars
       (not_followed_by (char '(' <|> char '[' <|> colon) "" *> version_char)
-    >>= fun x -> return @@ String.trim x
+    |>> String.trim
 
   let decimal = many1_chars digit
 
@@ -221,7 +229,7 @@ module Parser = struct
 
   let rec changes prev_changes =
     change >>= fun delta ->
-    followed_by blank_line "not next release"
+    followed_by blank_line "not next release 1"
     <|> followed_by (optional newline *> eof) "not eof 2"
     |>> (fun () -> List.rev (delta :: prev_changes))
     <|> newline *> changes (delta :: prev_changes)
@@ -230,14 +238,27 @@ module Parser = struct
     followed_by change_start "not change start"
     *> (changes [] |>> fun changes -> { Section.title = None; changes })
 
+  let atx_markdown_section_header =
+    let markdown_header_pre = skip_many1 (char '#') in
+    let markdown_header_post = skip_many1_chars newline in
+
+    between
+      (markdown_header_pre *> blanks)
+      (optional colon <* markdown_header_post)
+      line
+    >>= fun title ->
+    many change |>> fun changes ->
+    { Section.title = Some (title, AtxHeader 1); changes }
+
   (*
    Options here:
    1. Straight into bullet points for changes
    2. SectionHeader with just newline
    3. SectionHeader: with colon and newline
+   4. ## SectionHeader:
   *)
   let section =
-    no_section_header
+    no_section_header <|> atx_markdown_section_header
     <|>
     let end_of_title = option colon <* newline <?> "end of title1" in
     let end_of_title_2 =
@@ -247,7 +268,7 @@ module Parser = struct
     >>= fun title ->
     end_of_title_2 >>= fun sep ->
     optional newline *> opt [] (changes []) |>> fun changes ->
-    { Section.title = Some (title, Option.map (String.make 1) sep); changes }
+    { Section.title = Some (title, AsciiHeader sep); changes }
 
   let month_name_short =
     choice
@@ -294,37 +315,27 @@ module Parser = struct
         set_user_state { state with date_sep = Some sep } >>$ sep
     | { date_sep = Some sep; _ } -> char sep
 
-  (* Parse date of YYYY-MM-DD or YYYY/MM/DD. *)
-  (* let date = *)
-  (*   decimal >>= fun year -> *)
-  (*   date_sep >>= fun date_sep_char -> *)
-  (*   decimal >>= fun month -> *)
-  (*   skip date_sep *> decimal >>= fun day -> *)
-  (*   return @@ Release.FullDate (year, month, day, date_sep_char) *)
-
   let either_date =
-    decimal >>= fun x ->
-       ((* Parse date of YYYY-MM-DD or YYYY/MM/DD. *)
-        date_sep >>= fun date_sep_char ->
-        decimal >>= fun month ->
-        skip date_sep *> decimal >>= fun day ->
-        return @@ Release.FullDate (x, month, day, date_sep_char)) <|>
+    (* Parse date of YYYY-MM-DD or YYYY/MM/DD. *)
+    let year_month_day x () =
+      date_sep >>= fun date_sep_char ->
+      decimal >>= fun month ->
+      skip date_sep *> decimal >>= fun day ->
+      return @@ Release.FullDate (x, month, day, date_sep_char)
+    in
 
-       ((* Parse date of 4 October 2018 *)
-       blanks *> month_name_long <* blanks >>= fun month ->
-       decimal >>= fun year -> return @@ Release.DayMonthYear (x, month, year))
+    (* Parse date of 4 October 2018 *)
+    let day_month_year x () =
+      blanks *> month_name_long <* blanks >>= fun month ->
+      decimal >>= fun year -> return @@ Release.DayMonthYear (x, month, year)
+    in
 
-
-  (* let day_month_year = *)
-  (*   decimal <* blanks >>= fun day -> *)
-  (*   month_name_long <* blanks >>= fun month -> *)
-  (*   decimal >>= fun year -> *)
-  (*   return @@ Release.DayMonthYear (day, month, year) *)
+    decimal >>= fun x -> year_month_day x () <|> day_month_year x ()
 
   (* Free form string for the date, usually a placeholder for a release that hasn't occured. *)
   let custom_date =
-    many1 alphanum >>= fun x ->
-    return @@ Release.Custom (String.of_seq @@ List.to_seq x)
+    many1 alphanum |>> fun x ->
+    Release.Custom (String.of_seq @@ List.to_seq x)
 
   let release_date_or_release_name =
     parens (either_date <|> custom_date) <|> squares month_year
@@ -348,7 +359,6 @@ module Parser = struct
     >>= fun chars ->
     skip_many1_chars newline
     *> return (version, date, (String.get chars 0, String.length chars))
-  (* release_version <* (skip_many1_chars newline *> skip_many1_chars (char '-' <|> char '=') *> skip_many1_chars newline) *)
 
   (* version (date?)(:?) *)
   let ascii_header =
@@ -368,9 +378,11 @@ module Parser = struct
     <|> ascii_header
 
   let rec sections prev_sections =
-    clear_bullet_state *> section >>= fun section ->
+    clear_bullet_state *>
+    section >>= fun section ->
     followed_by (blank_line *> release_header) "not release header"
-    <|> followed_by (optional newline *> eof) "not eof 1"
+    <|> followed_by (optional newline *> eof) "not eof"
+
     |>> (fun () -> List.rev (section :: prev_sections))
     <|> blank_line *> sections (section :: prev_sections)
 
