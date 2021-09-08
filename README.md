@@ -67,33 +67,28 @@ either:
 TODO
 ----------
 
- * support `#### Deprecated` headers (dune-release and ocamlformat)
- * prefix paragraphs or generally between headers, probably should make these `Change.t`
+Failing tests:
+  [FAIL]        parse_print          0   cases/ocaml.
+  [FAIL]        parse_print          2   cases/opam.
+  [FAIL]        parse_print          3   cases/section_header_2.
+  [FAIL]        parse_print         10   cases/dune-release.
+  [FAIL]        parse_print         14   cases/ocamlformat.
+
+0. Floating free text section
+2. Has a pre-amble section before the first release header
+3. Same as 2, trying to parse both as section headers with no changes
+10. header with text block including [] and () that isn't version (date), minor whitespace
+14. Multi-line changes > 2 lines doesn't parse correctly.
+
+ * prefix paragraphs or generally between headers, probably should make these `Change.t` (opam/CHANGES)
  * dune handle indented lists within a change see `cases/dune/CHANGES`
- * ~~support date format `(4 October 2018)` for ocaml CHANGES~~
 
  * integrate into dune-release, which needs to read the first section in the CHANGELOG,
    modify it, and include it in the PR comment for creating against ocaml/opam-repository.
    eg https://github.com/ocaml/opam-repository/pull/19377
    dune release could already be supported, they handle simple markdown and asciidoc aka version 1.
 
- * identify the file type either by scanning ahead and heuristically identifing the type, or
-   by passing the type into the parser, having both ascii and markdown side by side.
  * current design will not round-trip using the correct markdown formatting
- * opam CHANGES has an opening paragraph before the first version header see `cases/opam`
- * indented list of lists in markdown format do not round trip
- eg
-```
-* Thing
-  * sub-list
-```
-
-Is parsed as two entries and pretty printed as:
-
-```
-* Thing
-* sub-list
-```
 
 Resources
 ----------
