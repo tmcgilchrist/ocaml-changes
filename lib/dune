@@ -1,5 +1,7 @@
 (library
  (name changes)
+ (flags
+  (:standard -w -32))
  (public_name ocaml-changes)
  (libraries result fmt mparser astring)
  (instrumentation

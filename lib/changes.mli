@@ -127,7 +127,7 @@ module Release : sig
     | Custom of string
 
   type header =
-    | ATXHeader
+    | ATXHeader of (int * string option)
     | SetextHeader of (char * int)
     | AsciiHeader of string option
 
