@@ -57,9 +57,9 @@ let check_diff dir s =
 module Parse = struct
   let test dir () =
     let ic = open_in (dir / "CHANGES") in
-    match Changes.of_channel ic with
+    match Changes2.of_channel ic with
     | Result.Error message -> check_diff dir message
-    | Result.Ok changes -> check_diff dir (Changes.to_string changes)
+    | Result.Ok changes -> check_diff dir (Changes2.to_string changes)
 
   let tests = read_tests test
 end
@@ -165,12 +165,85 @@ module Fixpoint = struct
   let tests = read_tests test
 end
 
+let changes =
+  let module M = struct
+      type t = Changes2.t
+
+      let pp = Changes2.pp
+
+      let equal = ( = )
+    end in
+  (module M : Alcotest.TESTABLE with type t = M.t)
+
+let test_atx_release_header () =
+  let a = [Changes2.Release.ReleaseChange
+             ({Changes2.Release.version = "0.3.0";
+               date = Some (Changes2.Release.FullDate ("2018", "07", "10", '-'))},
+              [])] in
+  let str =  "## 0.3.0 (2018-07-10)" in
+  Alcotest.(check changes) "parse" a (Result.get_ok @@ Changes2.of_string str)
+
+let test_setext_release_header () =
+  let a = [Changes2.Release.ReleaseChange
+             ({Changes2.Release.version = "0.3.0";
+               date = Some (Changes2.Release.FullDate ("2018", "07", "10", '-'))},
+              [])] in
+  let str =  "0.3.0 (2018-07-10)\n------\n" in
+  Alcotest.(check changes) "parse" a (Result.value ~default:[] @@ Changes2.of_string str)
+
+let test_ascii_release_header () =
+  let a = [Changes2.Release.ReleaseChange
+             ({Changes2.Release.version = "0.3.0";
+               date = Some (Changes2.Release.FullDate ("2018", "07", "10", '-'))},
+              [])] in
+  let str =  "0.3.0 (2018-07-10):\n" in
+  Alcotest.(check changes) "parse" a (Result.value ~default:[] @@ Changes2.of_string str)
+
+let test_empty () =
+  Alcotest.(check changes) "parse" [] (Result.value ~default:[] @@ Changes2.of_string "")
+
+let test_releases_with_no_changes () =
+  let a = [Changes2.Release.ReleaseChange
+             ({Changes2.Release.version = "0.2.0";
+               date = Some (Changes2.Release.FullDate ("2015", "01", "01", '-'))},
+              []);
+           Changes2.Release.ReleaseChange
+             ({Changes2.Release.version = "0.1.0";
+               date = Some (Changes2.Release.FullDate ("2014", "01", "01", '-'))},
+              [])] in
+  let str = "0.2.0 (2015-01-01):\n0.1.0 (2014-01-01):\n" in
+  Alcotest.(check changes) "parse" a (Result.value ~default:[] @@ Changes2.of_string str)
+
+let test_releases_with_changes () =
+  let a = [Changes2.Release.ReleaseChange
+             ({Changes2.Release.version = "0.2.0";
+               date = Some (Changes2.Release.FullDate ("2015", "01", "01", '-'))},
+              [{Changes2.Change.description = "things"; bullet_point = '*'}]);
+           Changes2.Release.ReleaseChange
+             ({Changes2.Release.version = "0.1.0";
+               date = Some (Changes2.Release.FullDate ("2014", "01", "01", '-'))},
+              [])] in
+  let str = "# 0.2.0 (2015-01-01):\n* things\n# 0.1.0 (2014-01-01):\n" in
+  Alcotest.(check changes) "parse" a (Result.value ~default:[] @@ Changes2.of_string str)
+
+
 let () =
+  let open Alcotest in
   let tests =
     [
       ("parse_print", Parse.tests);
       (* ("roundtrip", Roundtrip.tests);
        * ("fixpoint", Fixpoint.tests); *)
+      "test_parse", [
+        test_case "empty" `Quick test_empty;
+        test_case "atx_release_header" `Quick test_atx_release_header;
+        test_case "setext_release_header" `Quick test_setext_release_header;
+        test_case "ascii_release_header" `Quick test_ascii_release_header;
+
+        test_case "test release with no changes" `Quick test_releases_with_no_changes;
+        test_case "test release with changes" `Quick test_releases_with_changes
+
+      ]
     ]
   in
   Alcotest.run "Changes" tests

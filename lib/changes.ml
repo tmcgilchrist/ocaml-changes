@@ -228,13 +228,6 @@ module Parser = struct
     line <?> "change line" >>= fun description ->
     continue_change d [ description ]
 
-  let rec changes prev_changes =
-    change >>= fun delta ->
-    followed_by blank_line "not next release"
-    <|> followed_by (optional newline *> eof) "not changes eof"
-    |>> (fun () -> List.rev (delta :: prev_changes))
-    <|> (newline <?> "changes newline") *> changes (delta :: prev_changes)
-
   let no_section_header =
     followed_by change_start "not change start" *> return None
 
@@ -252,7 +245,16 @@ module Parser = struct
     return @@ Some (title, Section.AsciiHeader sep)
 
   let section_header =
-    no_section_header <|> atx_markdown_section_header <|> ascii_section_header
+    (* no_section_header <|>  *)
+    atx_markdown_section_header <|> ascii_section_header
+
+  let rec changes prev_changes =
+    change >>= fun delta ->
+    (* followed_by blank_line "not next release" *)
+    followed_by (newline *> section_header) "not section header"
+    <|> followed_by (optional newline *> eof) "not changes eof"
+    |>> (fun () -> List.rev (delta :: prev_changes))
+    <|> (newline <?> "changes newline") *> changes (delta :: prev_changes)
 
   (*
    Options here:
@@ -372,18 +374,11 @@ module Parser = struct
 
   let rec sections prev_sections =
     clear_bullet_state *> section >>= fun section ->
-    (* Match either blank_line *> release_header OR
-                 optional newline *> eof AND then
-       return sections parsed!
-    *)
     followed_by
       (newline *> skip_many1 newline *> release_header)
       "not release header"
-    (* FAILING because \n \n release_header didn't match *)
     <|> followed_by (skip_many newline *> eof) "not eof sections"
-    (* FAILING because \n EOF didn't match *)
     |>> (fun () -> List.rev (section :: prev_sections))
-    (* Skip newlines and process further sections. *)
     <|> skip_many newline *> sections (section :: prev_sections)
 
   let release =

@@ -1,2 +1,2 @@
-0.8.2 [Dec 2012]
+0.8.2 [Dec 2012]:
 * Fix an issue with `opam reinstall` where packages were reinstalled in reverse order

@@ -3,6 +3,17 @@
  (flags
   (:standard -w -32))
  (public_name ocaml-changes)
+ (modules changes)
+ (libraries result fmt mparser astring)
+ (instrumentation
+  (backend bisect_ppx)))
+
+(library
+ (name changes2)
+ (flags
+  (:standard -w -32))
+ (public_name ocaml-changes2)
+  (modules changes2)
  (libraries result fmt mparser astring)
  (instrumentation
   (backend bisect_ppx)))

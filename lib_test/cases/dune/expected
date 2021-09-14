@@ -1,5 +1,5 @@
-Unreleased
-----------
+# Unreleased
+
 - Include dependencies of executables when creating toplevels (either `dune
   top` or `dune utop`) (#4882, fixes #4872, @Gopiancode)
 
@@ -2785,4 +2785,3 @@ Unreleased
 0.1.alpha1 (04/12/2016)
 -----------------------
 First release
-

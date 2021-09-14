@@ -95,3 +95,11 @@ Resources
 ----------
 
  * [ocaml-markdown omd](https://github.com/ocaml/omd)
+
+
+OPTIONS
+----------
+
+ * throw everything at Omd markdown and pattern match structure.
+ * split out Ascii parser into it's own thing
+ * Only parse changes and no sub-section headers

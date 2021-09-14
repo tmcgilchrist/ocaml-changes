@@ -155,3 +155,42 @@ val of_channel : in_channel -> (t, string) Result.result
 
 val to_string : t -> string
 (** Render a Changelog as a string. *)
+
+
+(* Section headers
+
+cohttp style
+
+0.19.0 (2015-08-05):
+Compatibility breaking interface changes:
+* Remove `read_form` from the `Request/Response/Header` interfaces
+  as this should be done in `Body` handling instead (#401).
+
+odoc style
+
+2.0.0~beta4
+----------
+Additions
+- Handle @canonical tags in the top-comment of modules (@Julow, #662)
+- Simplify paths referring to Stdlib (@jonludlam, #677)
+
+ocamlformat style
+
+### unreleased
+
+#### Bug fixes
+
+  + Fix normalization of sequences of expressions (#1731, @gpetiot)
+
+ocaml style
+
+OCaml 4.07.1 (4 October 2018)
+-----------------------------
+
+### Bug fixes:
+
+- MPR#7815, GPR#1896: major GC crash with first-fit policy
+  (Stephen Dolan and Damien Doligez, report by Joris Giovannangeli)
+
+
+*)
