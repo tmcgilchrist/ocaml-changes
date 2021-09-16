@@ -19,16 +19,3 @@
   (bisect_ppx (and :dev (>= 2.5.0))))
  (synopsis "Changelog parser")
  (description "Provides a changelog data type, parser, linter, and printer"))
-
-(package
- (name ocaml-changes2)
- (depends
-  (alcotest :with-test)
-  (ocaml (>= 4.08.0))
-  (mparser (>= 1.3))
-  (fmt (>= 0.8))
-  (result (>= 1.5))
-  (astring (>= 0.8))
-  (bisect_ppx (and :dev (>= 2.5.0))))
- (synopsis "Changelog parser")
- (description "Provides a changelog data type, parser, linter, and printer"))

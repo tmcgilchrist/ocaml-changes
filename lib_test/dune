@@ -1,5 +1,5 @@
 (test
  (name test)
- (libraries ocaml-changes ocaml-changes2 alcotest)
+ (libraries ocaml-changes alcotest)
  (deps
   (source_tree cases)))

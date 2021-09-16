@@ -67,29 +67,10 @@ either:
 TODO
 ----------
 
-Failing tests:
-  [FAIL]        parse_print          0   cases/ocaml.
-  [FAIL]        parse_print          2   cases/opam.
-  [FAIL]        parse_print          3   cases/section_header_2.
-  [FAIL]        parse_print         10   cases/dune-release.
-  [FAIL]        parse_print         13   cases/section_header.
-  [FAIL]        parse_print         14   cases/ocamlformat.
-
-2 Issues:
- * +Expecting '*', '+', '-', newline, not eof sections or not release header
- Detecting the end of changes and rolling into the next section
- * opam has a prefix section with no Release Header?
-
-
- * prefix paragraphs or generally between headers, probably should make these `Change.t` (opam/CHANGES)
- * dune handle indented lists within a change see `cases/dune/CHANGES`
-
- * integrate into dune-release, which needs to read the first section in the CHANGELOG,
-   modify it, and include it in the PR comment for creating against ocaml/opam-repository.
-   eg https://github.com/ocaml/opam-repository/pull/19377
-   dune release could already be supported, they handle simple markdown and asciidoc aka version 1.
-
- * current design will not round-trip using the correct markdown formatting
+ * add support for Sections within a Release block using markdown
+   eg Irmin or LWT style.
+ * property tests for roundtripping print / parse / print
+ *
 
 Resources
 ----------
@@ -103,3 +84,63 @@ OPTIONS
  * throw everything at Omd markdown and pattern match structure.
  * split out Ascii parser into it's own thing
  * Only parse changes and no sub-section headers
+
+``` ocaml
+(* Section headers for common libraries.
+
+cohttp style
+
+0.19.0 (2015-08-05):
+Compatibility breaking interface changes:
+* Remove `read_form` from the `Request/Response/Header` interfaces
+  as this should be done in `Body` handling instead (#401).
+
+odoc style
+
+2.0.0~beta4
+----------
+Additions
+- Handle @canonical tags in the top-comment of modules (@Julow, #662)
+- Simplify paths referring to Stdlib (@jonludlam, #677)
+
+ocamlformat style
+
+### unreleased
+
+#### Bug fixes
+
+  + Fix normalization of sequences of expressions (#1731, @gpetiot)
+
+ocaml style
+
+*)
+
+(** A Section is a collection of [Change.t]s within a Changelog.
+
+  Common examples are:
+  - {i Added} for new features.
+  - {i Changed} for changes in existing functionality.
+  - {i Deprecated} for soon-to-be removed features.
+  - {i Removed} for now removed features.
+  - {i Fixed} for any bug fixes.
+  - {i Security} in case of vulnerabilities.
+
+ *)
+module Section : sig
+  type format =
+    | AtxHeader of int
+    | SetextHeader of (char * int)
+    | AsciiHeader of char option
+
+  type header = string * format
+
+  type t = { title : header option; changes : Change.t list }
+
+  val pp_header : header Fmt.t
+
+  val pp : t Fmt.t
+  (** Transform a [Section.t] to a string. *)
+end
+
+
+```

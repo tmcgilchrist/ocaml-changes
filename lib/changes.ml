@@ -1,64 +1,8 @@
-(*
- * Copyright (c) 2016 David Sheets <sheets@alum.mit.edu>
- *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *)
-
-open Result
-
 module Change = struct
-  type t = { description : string; list_marker : char }
+  type t = { description : string; bullet_point : char }
 
-  let pp f { description; list_marker } =
-    let lines = Astring.String.fields ~is_sep:(( = ) '\n') description in
-    let rev_indented_lines =
-      List.fold_left
-        (fun lines line ->
-          match lines with
-          | [] -> [ line ]
-          | _ :: _ -> (
-              match line with
-              | "" -> "" :: lines
-              | line -> ("  " ^ line) :: lines))
-        [] lines
-    in
-    let description = String.concat "\n" (List.rev rev_indented_lines) in
-    Fmt.pf f "%c %s" list_marker description
-end
-
-module Section = struct
-  type format =
-    | AtxHeader of int
-    | SetextHeader of (char * int)
-    | AsciiHeader of char option
-
-  type header = string * format
-
-  type t = { title : header option; changes : Change.t list }
-
-  let pp_header f = function
-    | str, AtxHeader n -> Fmt.pf f "%s %s" (String.make n '#') str
-    | str, SetextHeader (c, n) -> Fmt.pf f "%s\n%s" (String.make n c) str
-    | str, AsciiHeader (Some c) -> Fmt.pf f "%s%c" str c
-    | str, AsciiHeader None -> Fmt.pf f "%s" str
-
-  let pp f = function
-    | { title = None; changes } ->
-        Fmt.pf f "%a" Fmt.(list ~sep:(unit "\n") Change.pp) changes
-    | { title = Some header; changes } ->
-        Fmt.pf f "%a\n%a" pp_header header
-          Fmt.(list ~sep:(unit "\n") Change.pp)
-          changes
+  let pp f { description; bullet_point } =
+    Fmt.pf f "%c %s" bullet_point description
 end
 
 module Release = struct
@@ -66,24 +10,12 @@ module Release = struct
     | FullDate of (string * string * string * char) (* 04/08/2018 *)
     | MonthYear of (int * string) (* Oct 2018 *)
     | DayMonthYear of (string * string * string) (* 4 October 2018 *)
-    (* unreleased *)
     | Custom of string
+  (* unreleased *)
 
-  type header =
-    | ATXHeader of (int * string option)
-    | SetextHeader of (char * int)
-    | AsciiHeader of string option
+  type header = { version : string; date : date option }
 
-  type version = string * header
-
-  type t = { version : version; date : date option; sections : Section.t list }
-
-  let pp_version f = function
-    | str, ATXHeader (n, c) ->
-        Fmt.pf f "%s%s%s" (String.make n '#') (Option.value ~default:"" c) str
-    | str, SetextHeader (c, n) -> Fmt.pf f "%s\n%s" (String.make n c) str
-    | str, AsciiHeader (Some c) -> Fmt.pf f "%s%s" str c
-    | str, AsciiHeader None -> Fmt.pf f "%s" str
+  type t = ReleaseChange of header * Change.t list
 
   let pp_date f = function
     | Custom str -> Fmt.pf f "(%s)" str
@@ -110,46 +42,16 @@ module Release = struct
         let month = Option.value ~default:"Jan" (List.assoc_opt m months) in
         Fmt.pf f "[%s %s]" month y
 
-  (* Variants of headers:
+  let pp_header f { version; date } =
+    match date with
+    | None -> Fmt.pf f "%s" version
+    | Some x -> Fmt.pf f "%s %a" version pp_date x
 
-     Header
-     ----
-
-     Header (date)
-     =====
-
-     ## Header:
-     ## Header (date):
-     ## Header (date)
-
-     Header [date]
-     Header [date]:
-     Header (date)
-     Header (date):
-  *)
-  let pp f { version; date; sections } =
-    let date_str =
-      Option.map (fun x -> Fmt.strf " %a" pp_date x) date
-      |> Option.value ~default:""
-    in
-    match version with
-    | str, ATXHeader (n, c) ->
-        Fmt.pf f "%s %s%s%s\n%a\n" (String.make n '#') str date_str
-          (Option.value ~default:"" c)
-          Fmt.(list ~sep:(unit "\n\n") Section.pp)
-          sections
-    | str, SetextHeader (c, n) ->
-        Fmt.pf f "%s%s\n%s\n%a\n" str date_str (String.make n c)
-          Fmt.(list ~sep:(unit "\n\n") Section.pp)
-          sections
-    | str, AsciiHeader (Some c) ->
-        Fmt.pf f "%s%s%s\n%a\n" str date_str c
-          Fmt.(list ~sep:(unit "\n\n") Section.pp)
-          sections
-    | str, AsciiHeader None ->
-        Fmt.pf f "%s%s\n%a\n" str date_str
-          Fmt.(list ~sep:(unit "\n\n") Section.pp)
-          sections
+  let pp f = function
+    | ReleaseChange (header, changes) ->
+        Fmt.pf f "# %a\n%a" pp_header header
+          Fmt.(list ~sep:(unit "\n") Change.pp)
+          changes
 end
 
 type t = Release.t list
@@ -163,11 +65,32 @@ module Parser = struct
     cur_change_d : int;
   }
 
+  (** [hidden p] behaves just like parser [p] but it doesn't show any
+     expected tokens in error message of [p]*)
+  let hidden p s = ( <?> ) p "" s
+
+  let ( *> ) = ( >> )
+
+  let ( <* ) = ( << )
+
+  (* Skip many spaces or tabs, NOT newlines. *)
+  let blanks = hidden (skip_many_chars blank)
+
   let colon = char ':'
 
   let parens p = between (char '(') (char ')') p
 
   let squares p = between (char '[') (char ']') p
+
+  let decimal = many1_chars digit
+
+  let version_char =
+    alphanum <|> char ' ' <|> char '.' <|> char '~' <|> char '+' <|> char ','
+    <|> char '"' <|> char '#' <?> "Version character"
+
+  let line = many_chars (not_followed_by newline "" *> any_char)
+
+  let blank_line = newline *> skip_many1 newline
 
   let rec skip_upto_count k p =
     match k with
@@ -181,91 +104,10 @@ module Parser = struct
     get_user_state >>= fun state ->
     set_user_state { state with change_bullet = None }
 
-  let blanks = hidden (skip_many_chars blank)
-
-  let line = many_chars (not_followed_by newline "" *> any_char)
-
-  let version_char =
-    alphanum <|> char ' ' <|> char '.' <|> char '~' <|> char '+'
-
   let version =
     many1_chars
       (not_followed_by (char '(' <|> char '[' <|> colon) "" *> version_char)
     |>> String.trim
-
-  let decimal = many1_chars digit
-
-  let change_bullet =
-    get_user_state >>= function
-    | { change_bullet = None; _ } as state ->
-        char '*' <|> char '-' <|> char '+' >>= fun bullet ->
-        set_user_state { state with change_bullet = Some bullet } >>$ bullet
-    | { change_bullet = Some bullet; _ } -> char bullet
-
-  let change_start =
-    blanks *> skip change_bullet *> blanks *> get_pos >>= fun (_, _, col) ->
-    get_user_state >>= fun state ->
-    set_user_state { state with cur_change_d = col - 1 }
-
-  let blank_line = newline *> skip_many1 newline
-
-  let rec continue_change d prev_lines =
-    followed_by (newline *> change_start) "next line not new change"
-    <|> followed_by
-          (blank_line *> not_followed_by (skip_count d.cur_change_d blank) "")
-          "next line not new release"
-    <|> followed_by (optional newline *> eof) "next line not eof"
-    |>> (fun () ->
-          {
-            Change.description = String.concat "\n" (List.rev prev_lines);
-            list_marker = Option.value ~default:'*' d.change_bullet;
-          })
-    <|> ( newline *> skip_upto_count d.cur_change_d blank *> line
-        >>= fun next_line -> continue_change d (next_line :: prev_lines) )
-
-  let change =
-    change_start *> get_user_state >>= fun d ->
-    line <?> "change line" >>= fun description ->
-    continue_change d [ description ]
-
-  let no_section_header =
-    followed_by change_start "not change start" *> return None
-
-  let atx_markdown_section_header =
-    many1 (char '#') >>= fun pre ->
-    blanks *> line >>= fun title ->
-    skip_many newline <|> eof
-    >> return @@ Some (title, Section.AtxHeader (List.length pre))
-
-  let ascii_section_header =
-    many1_chars
-      (not_followed_by (option colon <* newline) "No end of title" *> any_char)
-    >>= fun title ->
-    option colon <* (skip_many newline <|> eof) >>= fun sep ->
-    return @@ Some (title, Section.AsciiHeader sep)
-
-  let section_header =
-    (* no_section_header <|>  *)
-    atx_markdown_section_header <|> ascii_section_header
-
-  let rec changes prev_changes =
-    change >>= fun delta ->
-    (* followed_by blank_line "not next release" *)
-    followed_by (newline *> section_header) "not section header"
-    <|> followed_by (optional newline *> eof) "not changes eof"
-    |>> (fun () -> List.rev (delta :: prev_changes))
-    <|> (newline <?> "changes newline") *> changes (delta :: prev_changes)
-
-  (*
-   Options here:
-   1. Straight into bullet points for changes
-   2. SectionHeader with just newline
-   3. SectionHeader: with colon and newline
-   4. ## SectionHeader:
-  *)
-  let section =
-    section_header >>= fun title ->
-    opt [] (changes []) |>> fun changes -> { Section.title; changes }
 
   let month_name_short =
     choice
@@ -303,7 +145,8 @@ module Parser = struct
 
   let month_year =
     month_name_short >>= fun month ->
-    blanks *> decimal >>= fun year -> return @@ Release.MonthYear (month, year)
+    blanks *> decimal >>= fun year ->
+    blanks >>= fun () -> return @@ Release.MonthYear (month, year)
 
   let date_sep =
     get_user_state >>= function
@@ -333,65 +176,79 @@ module Parser = struct
   let custom_date =
     many1 alphanum |>> fun x -> Release.Custom (String.of_seq @@ List.to_seq x)
 
-  let release_date_or_release_name =
-    parens (either_date <|> custom_date) <|> squares month_year
+  let release_date = parens (either_date <|> custom_date) <|> squares month_year
 
   let release_version =
     version <?> "a non-empty, non-blank version string" >>= fun version ->
-    option release_date_or_release_name |>> fun date -> (version, date)
+    option release_date |>> fun date -> (version, date)
 
-  let atx_markdown_header =
-    many1_chars (char '#') >>= fun chars ->
-    blanks *> release_version >>= fun (version, date) ->
-    option colon >>= fun colon ->
-    skip_many1 newline
-    *> return
-         ( ( version,
-             Release.ATXHeader
-               (String.length chars, Option.map (String.make 1) colon) ),
-           date )
+  let atx_release_header =
+    many1_chars (char '#') *> blanks *> release_version
+    >>= fun (version, date) ->
+    option colon *> skip_many newline *> return { Release.version; date }
 
-  let setext_markdown_header =
+  let setext_release_header =
     release_version >>= fun (version, date) ->
-    skip_many1 newline *> many1_chars (char '-' <|> char '=') >>= fun chars ->
-    skip_many1 newline
-    >> return
-         ( ( version,
-             Release.SetextHeader (String.get chars 0, String.length chars) ),
-           date )
+    newline
+    *> many1_chars (char '-' <|> char '=')
+    *> skip_many1 newline
+    *> return { Release.version; date }
 
-  (* version (date?)(:?) *)
   let ascii_header =
-    version >>= fun version ->
-    option release_date_or_release_name >>= fun date ->
-    option (string ":") >>= fun colon ->
-    skip_many1 newline
-    *> not_followed_by (string "==" <|> string "--") "ascii_header"
-    *> return ((version, Release.AsciiHeader colon), date)
+    release_version >>= fun (version, date) ->
+    (* NOTE without mandatory colon we can't terminate continue_change using release_header!
+       If we tracked the indentation level
+    *)
+    colon *> skip_many1 newline *> return { Release.version; date }
 
   let release_header =
-    atx_markdown_header <|> attempt setext_markdown_header <|> ascii_header
+    atx_release_header
+    <|> attempt setext_release_header
+    <|> ascii_header <?> "release header"
 
-  let rec sections prev_sections =
-    clear_bullet_state *> section >>= fun section ->
-    followed_by
-      (newline *> skip_many1 newline *> release_header)
-      "not release header"
-    <|> followed_by (skip_many newline *> eof) "not eof sections"
-    |>> (fun () -> List.rev (section :: prev_sections))
-    <|> skip_many newline *> sections (section :: prev_sections)
+  let change_bullet =
+    get_user_state >>= function
+    | { change_bullet = None; _ } as state ->
+        char '*' <|> char '-' <|> char '+' >>= fun bullet ->
+        set_user_state { state with change_bullet = Some bullet } >>$ bullet
+    | { change_bullet = Some bullet; _ } -> char bullet
+
+  let change_start =
+    blanks *> skip change_bullet *> blanks *> get_pos >>= fun (_, _, col) ->
+    get_user_state >>= fun state ->
+    set_user_state { state with cur_change_d = col - 1 }
+
+  let rec continue_change d prev_lines =
+    followed_by (many1 newline *> change_start) "next line not new change"
+    <|> followed_by
+          (many1 newline *> release_header)
+          "next line not new release_header"
+    <|> followed_by
+          (blank_line *> not_followed_by (skip_count d.cur_change_d blank) "")
+          "next line not new release"
+    <|> followed_by (optional newline *> eof) "not changes eof"
+    |>> (fun () ->
+          {
+            Change.description = String.concat "\n  " (List.rev prev_lines);
+            bullet_point = Option.value ~default:'*' d.change_bullet;
+          })
+    <|> ( newline *> skip_upto_count d.cur_change_d blank *> line
+        >>= fun next_line -> continue_change d (next_line :: prev_lines) )
+
+  let change =
+    change_start *> get_user_state >>= fun state ->
+    line >>= fun description ->
+    continue_change state [ description ] <* many1 newline
 
   let release =
-    release_header >>= fun (version, date) ->
-    sections [] >>= fun sections -> return Release.{ version; date; sections }
+    release_header >>= fun header ->
+    many change >>= fun changes ->
+    clear_bullet_state >> many newline
+    >> return @@ Release.ReleaseChange (header, changes)
 
-  let rec releases prev_releases =
-    release >>= fun release ->
-    followed_by (optional newline *> eof) "not eof 0"
-    |>> (fun () -> List.rev (release :: prev_releases))
-    <|> blank_line *> releases (release :: prev_releases)
+  let releases = many_until release eof
 
-  let v = releases []
+  let v = releases
 end
 
 let of_ parse changelog =
@@ -404,5 +261,8 @@ let of_string = of_ MParser.parse_string
 
 let of_channel = of_ MParser.parse_channel
 
+let pp f changelog =
+  Fmt.pf f "%a" Fmt.(list ~sep:(unit "\n\n") Release.pp) changelog
+
 let to_string changelog =
-  Fmt.strf "%a" Fmt.(list ~sep:(unit "\n") Release.pp) changelog
+  Fmt.strf "%a" Fmt.(list ~sep:(unit "\n\n") Release.pp) changelog
