@@ -1,19 +1,3 @@
-(*
- * Copyright (c) 2016 David Sheets <sheets@alum.mit.edu>
- *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *)
-
 (** A Changelog is a file which contains a curated, chronologically ordered list of notable changes for each version of a project.
 
 {3 Why keep a changelog?}
@@ -71,7 +55,6 @@ found for OCaml projects. Representive CHANGELOGs that are supported:
 
 ]}
 
-
  *)
 
 (** Represents a logical change to a project.
@@ -79,45 +62,29 @@ found for OCaml projects. Representive CHANGELOGs that are supported:
   For example, adding a new feature, fixing a bug, or writing documentation.
  *)
 module Change : sig
-  type t = { description : string }
+  type t = { description : string; bullet_point : char }
 
-  val to_string : t -> string
+  val pp : t Fmt.t
   (** Transform an individual [Change.t] to a string. *)
 end
 
-(** A Section is a collection of [Change.t]s within a Changelog.
-
-  Common examples are:
-  - {i Added} for new features.
-  - {i Changed} for changes in existing functionality.
-  - {i Deprecated} for soon-to-be removed features.
-  - {i Removed} for now removed features.
-  - {i Fixed} for any bug fixes.
-  - {i Security} in case of vulnerabilities.
-
- *)
-module Section : sig
-  type t = { title : string option; changes : Change.t list }
-
-  val to_string : t -> string
-  (** Transform a [Section.t] to a string. *)
-end
-
-(** A Release is the accumulation of sections and changes, with an optional release date.
-
-  If no named section is present then an unnamed section is included.
+(** A Release is the accumulation of changes, with an optional release date.
 
   A [version] should be a {{:https://semver.org}semantic version} or an tag representing
   the unreleased changes.
  *)
 module Release : sig
-  type t = {
-    version : string;
-    date : (int * int * int) option;
-    sections : Section.t list;
-  }
+  type date =
+    | FullDate of (string * string * string * char)
+    | MonthYear of (int * string)
+    | DayMonthYear of (string * string * string)
+    | Custom of string
 
-  val to_string : t -> string
+  type header = { version : string; date : date option }
+
+  type t = ReleaseChange of header * Change.t list
+
+  val pp : t Fmt.t
   (** Transform a [Release.t] to a string. *)
 end
 
@@ -130,5 +97,7 @@ val of_string : string -> (t, string) Result.result
 val of_channel : in_channel -> (t, string) Result.result
 (** Parse changelog file from an [in_channel]. *)
 
+val pp : Format.formatter -> t -> unit
+
 val to_string : t -> string
-(** Render a Changelog as a string. *)
+(** Render a [t] as a string. *)

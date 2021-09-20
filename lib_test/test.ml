@@ -1,19 +1,3 @@
-(*
- * Copyright (c) 2016 David Sheets <sheets@alum.mit.edu>
- *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *)
-
 let ( / ) = Filename.concat
 
 let read_ic ic =
@@ -64,87 +48,119 @@ module Parse = struct
   let tests = read_tests test
 end
 
-let date =
+let changes =
   let module M = struct
-    type t = int * int * int
+    type t = Changes.t
 
-    let pp fmt (y, m, d) = Format.fprintf fmt "%d-%02d-%02d" y m d
+    let pp = Changes.pp
 
     let equal = ( = )
   end in
   (module M : Alcotest.TESTABLE with type t = M.t)
 
-let diff expected output =
-  let open Changes in
-  Alcotest.(check int)
-    "number of releases" (List.length expected) (List.length output);
-  List.iter2
-    (fun expected output ->
-      let open Release in
-      let version = expected.version in
-      Alcotest.(check string) "version" expected.version output.version;
-      Alcotest.(check (option date)) "date" expected.date output.date;
-      Alcotest.(check int)
-        ("number of sections in " ^ expected.version)
-        (List.length expected.sections)
-        (List.length output.sections);
-      List.iter2
-        (fun expected output ->
-          let open Section in
-          Alcotest.(check (option string))
-            ("section title in " ^ version)
-            expected.title output.title;
-          let title = version ^ "/" ^ Option.value ~default:"" expected.title in
-          Alcotest.(check int)
-            ("number of changes in " ^ title)
-            (List.length expected.changes)
-            (List.length output.changes);
-          List.iter2
-            (fun expected output ->
-              let open Change in
-              Alcotest.(check string)
-                ("change description of " ^ title)
-                expected.description output.description)
-            expected.changes output.changes)
-        expected.sections output.sections)
-    expected output
+let unit_test str ast =
+  Alcotest.(check changes) "parse" ast (Result.get_ok @@ Changes.of_string str)
 
-(* parse, print, parse *)
-module Roundtrip = struct
-  let test dir () =
-    let ic = open_in (dir / "CHANGES") in
-    match Changes.of_channel ic with
-    | Result.Error message -> check_diff dir message
-    | Result.Ok changes -> (
-        match Changes.(of_string (to_string changes)) with
-        | Result.Error message ->
-            Alcotest.fail ("Roundtrip parsing failed with: " ^ message)
-        | Result.Ok rt -> diff changes rt)
+let test_atx_release_header () =
+  let ast =
+    [
+      Changes.Release.ReleaseChange
+        ( {
+            Changes.Release.version = "0.3.0";
+            date = Some (Changes.Release.FullDate ("2018", "07", "10", '-'));
+          },
+          [] );
+    ]
+  in
+  let str = "## 0.3.0 (2018-07-10)" in
+  unit_test str ast
 
-  let tests = read_tests test
-end
+let test_setext_release_header () =
+  let ast =
+    [
+      Changes.Release.ReleaseChange
+        ( {
+            Changes.Release.version = "0.3.0";
+            date = Some (Changes.Release.FullDate ("2018", "07", "10", '-'));
+          },
+          [] );
+    ]
+  in
+  let str = "0.3.0 (2018-07-10)\n------\n" in
+  unit_test str ast
 
-(* parse, print, parse, print *)
-module Fixpoint = struct
-  let test dir () =
-    let ic = open_in (dir / "CHANGES") in
-    match Changes.of_channel ic with
-    | Result.Error message -> check_diff dir message
-    | Result.Ok changes -> (
-        match Changes.(of_string (to_string changes)) with
-        | Result.Error message ->
-            Alcotest.fail ("Fixpoint parsing failed with: " ^ message)
-        | Result.Ok rt -> check_diff dir (Changes.to_string rt))
+let test_ascii_release_header () =
+  let ast =
+    [
+      Changes.Release.ReleaseChange
+        ( {
+            Changes.Release.version = "0.3.0";
+            date = Some (Changes.Release.FullDate ("2018", "07", "10", '-'));
+          },
+          [] );
+    ]
+  in
+  let str = "0.3.0 (2018-07-10):\n" in
+  unit_test str ast
 
-  let tests = read_tests test
-end
+let test_empty () = unit_test "" []
+
+let test_releases_with_no_changes () =
+  let ast =
+    [
+      Changes.Release.ReleaseChange
+        ( {
+            Changes.Release.version = "0.2.0";
+            date = Some (Changes.Release.FullDate ("2015", "01", "01", '-'));
+          },
+          [] );
+      Changes.Release.ReleaseChange
+        ( {
+            Changes.Release.version = "0.1.0";
+            date = Some (Changes.Release.FullDate ("2014", "01", "01", '-'));
+          },
+          [] );
+    ]
+  in
+  let str = "0.2.0 (2015-01-01):\n0.1.0 (2014-01-01):\n" in
+  unit_test str ast
+
+let test_releases_with_changes () =
+  let ast =
+    [
+      Changes.Release.ReleaseChange
+        ( {
+            Changes.Release.version = "0.2.0";
+            date = Some (Changes.Release.FullDate ("2015", "01", "01", '-'));
+          },
+          [ { Changes.Change.description = "things"; bullet_point = '*' } ] );
+      Changes.Release.ReleaseChange
+        ( {
+            Changes.Release.version = "0.1.0";
+            date = Some (Changes.Release.FullDate ("2014", "01", "01", '-'));
+          },
+          [] );
+    ]
+  in
+  let str = "# 0.2.0 (2015-01-01):\n* things\n# 0.1.0 (2014-01-01):\n" in
+  unit_test str ast
 
 let () =
+  let open Alcotest in
   let tests =
     [
       ("parse_print", Parse.tests);
-      ("roundtrip", Roundtrip.tests);
-      ("fixpoint", Fixpoint.tests);
+      ( "test_parse",
+        [
+          test_case "empty" `Quick test_empty;
+          test_case "atx_release_header" `Quick test_atx_release_header;
+          test_case "setext_release_header" `Quick test_setext_release_header;
+          test_case "ascii_release_header" `Quick test_ascii_release_header;
+          test_case "test release with no changes" `Quick
+            test_releases_with_no_changes;
+          test_case "test release with changes" `Quick
+            test_releases_with_changes;
+        ] );
     ]
   in
   Alcotest.run "Changes" tests
