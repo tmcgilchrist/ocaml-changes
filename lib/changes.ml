@@ -50,7 +50,7 @@ module Release = struct
   let pp f = function
     | ReleaseChange (header, changes) ->
         Fmt.pf f "# %a\n%a" pp_header header
-          Fmt.(list ~sep:(unit "\n") Change.pp)
+          Fmt.(list ~sep:(any "\n") Change.pp)
           changes
 end
 
@@ -262,7 +262,7 @@ let of_string = of_ MParser.parse_string
 let of_channel = of_ MParser.parse_channel
 
 let pp f changelog =
-  Fmt.pf f "%a" Fmt.(list ~sep:(unit "\n\n") Release.pp) changelog
+  Fmt.pf f "%a" Fmt.(list ~sep:(any "\n\n") Release.pp) changelog
 
 let to_string changelog =
-  Fmt.strf "%a" Fmt.(list ~sep:(unit "\n\n") Release.pp) changelog
+  Fmt.str "%a" Fmt.(list ~sep:(any "\n\n") Release.pp) changelog
