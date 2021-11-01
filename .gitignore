@@ -22,5 +22,5 @@ _build/
 *.install
 
 # Local OPAM switch
-_opam/
+_opam
 /_coverage/
